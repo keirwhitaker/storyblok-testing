@@ -1,0 +1,32 @@
+
+<!DOCTYPE html>
+    <html lang="en" id="html-{{ page.title | slugify }}">
+	<head>
+		<!-- 
+        * {{ site.title }}
+        * {{ site.version }}
+         -->
+        <title>{{ page.title }} | {{ site.title }}</title>
+		<meta name="description" content="{{ page.description }}" />
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+		<meta http-equiv="Accept-CH" content="DPR,Width,Viewport-Width" />
+		<!-- OG Cards-->
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<!-- Google Fonts-->
+        <!-- Font Awesome Kit-->
+		<script src="https://code.jquery.com/jquery-3.7.0.min.js" integrity="sha256-2Pmvv0kuTBOenSvLm6bvfBSSHrUJ+3A7x6P5Ebd07/g=" crossorigin="anonymous"></script>
+		<script src="/js/site.js"></script>
+        {% if jekyll.environment == "production" %}
+        <script defer data-domain="{{ site.domain }}" src="https://plausible.io/js/script.js"></script>
+        {% endif %}
+	    <!-- Favicons-->
+		<link rel="canonical" href="{{ site.url }}{{ page.url }}" />
+		<link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
+		<link rel="stylesheet" type="text/css" href="/css/screen.css?{{ site.time | date: '%Y%m%d%H%M' }}" />
+	</head>
+	<body id="{{ page.title | slugify }}" class="bg-white text-black antialiased">
+
+        

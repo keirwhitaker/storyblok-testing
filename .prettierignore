@@ -1,0 +1,7 @@
+# Ignore artifacts:
+_site
+
+# Ignore selected HTML files:
+_includes/html-header.html
+_includes/html-footer.html
+tailwind.config.js

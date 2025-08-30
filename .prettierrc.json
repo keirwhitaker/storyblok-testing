@@ -1,0 +1,13 @@
+{
+	"plugins": ["prettier-plugin-tailwindcss"],
+	"printWidth": 3000,
+	"useTabs": true,
+	"overrides": [
+		{
+			"files": ["./_layouts/**/*.liquid"],
+			"options": {
+				"parser": "html"
+			}
+		}
+	]
+}

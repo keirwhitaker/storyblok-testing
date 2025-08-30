@@ -1,0 +1,22 @@
+{
+	"scripts": {
+		"jekyll:dev": "bundle exec jekyll serve -H localhost --livereload -- force_polling",
+		"jekyll:build": "bundle exec jekyll clean && JEKYLL_ENV=production bundle exec jekyll build -c _config.yml,_config_production.yml",
+		"tailwind:dev": "npx tailwindcss -i ./_tailwind/screen.css -o ./css/screen.css --watch",
+		"tailwind:minify": "npx tailwindcss -i ./_tailwind/screen.css -o ./css/screen.css --minify",
+		"dev": "concurrently --kill-others \"npm run jekyll:dev\" \"npm run tailwind:dev\"",
+		"build": "npm run tailwind:minify && npm run jekyll:build",
+		"clean": "bundle exec jekyll clean"
+	},
+	"dependencies": {
+		"@tailwindcss/cli": "^4.0.0",
+		"tailwindcss": "^4.0.0"
+	},
+	"devDependencies": {
+		"@tailwindcss/forms": "^0.5.10",
+		"@tailwindcss/typography": "^0.5.16",
+		"concurrently": "^9.1.2",
+		"prettier": "^3.4.2",
+		"prettier-plugin-tailwindcss": "^0.6.11"
+	}
+}

@@ -1,0 +1,15 @@
+url: https://domain.com
+domain: domain.com
+title: Site Title
+exclude:
+  - "*.config.js"
+  - "package*.json"
+  - "tailwind"
+  - "node_modules"
+include:
+  - humans.txt
+defaults:
+collections:
+  posts:
+    output: true
+    permalink: /blog/:title/
