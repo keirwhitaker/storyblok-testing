@@ -13,3 +13,6 @@ collections:
   posts:
     output: true
     permalink: /blog/:title/
+  entries:
+    output: true
+    permalink: /entries/:slug/

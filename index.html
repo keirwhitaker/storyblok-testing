@@ -3,4 +3,10 @@ title: "Index"
 layout: default
 ---
 
-<h1 class="text-4xl">This is the Home Page!</h1>
+<h1>Latest Entries</h1>
+
+<ul>
+	{% for entry in site.entries %}
+	<li>{{ entry.title }}</li>
+	{% endfor %}
+</ul>

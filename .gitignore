@@ -1,4 +1,6 @@
 .DS_Store
+_data
+_entries
 _site/
 .sass-cache/
 .jekyll-cache/
