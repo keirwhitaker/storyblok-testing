@@ -6,6 +6,7 @@
 		"tailwind:minify": "npx tailwindcss -i ./_tailwind/screen.css -o ./css/screen.css --minify",
 		"dev": "concurrently --kill-others \"npm run jekyll:dev\" \"npm run tailwind:dev\"",
 		"build": "npm run tailwind:minify && npm run jekyll:build",
+		"netlify:build": "npm run tailwind:minify && ruby scripts/fetch_and_generate.rb && npm run jekyll:build",
 		"clean": "bundle exec jekyll clean"
 	},
 	"dependencies": {
