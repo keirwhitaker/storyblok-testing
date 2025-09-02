@@ -161,11 +161,6 @@
   }
 }
 @layer utilities {
-  .truncate {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
   .bg-white {
     background-color: var(--color-white);
   }

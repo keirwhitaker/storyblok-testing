@@ -10,3 +10,9 @@ layout: default
 	<li>{{ entry.title }}</li>
 	{% endfor %}
 </ul>
+
+<ul>
+	{% assign entries = site.entries %} {% for entry in entries %}
+	<li><a href="{{ entry.url }}">{{ entry.title }}</a> -- {{ entry.category }}</li>
+	{% endfor %}
+</ul>

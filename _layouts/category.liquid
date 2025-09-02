@@ -1,0 +1,8 @@
+<h1>{{ page.title }}</h1>
+
+{% assign entries = site.entries | where: "category", page.category %}
+{% for entry in entries %}
+  <li><a href="{{ entry.url }}">{{ entry.title }}</a></li>
+{% endfor %}
+
+

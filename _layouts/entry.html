@@ -1,0 +1,42 @@
+---
+layout: default
+---
+
+<article class="entry">
+	<header>
+		<h1>{{ page.title }}</h1>
+		{% if page.category %}
+		<p class="category">
+			<a href="/categories/{{ page.category | slugify }}/">{{ page.category }}</a>
+		</p>
+		{% endif %}
+	</header>
+
+	{% if page.image %}
+	<figure>
+		<img src="{{ page.image }}" alt="{{ page.title | escape }}" loading="lazy" />
+	</figure>
+	{% endif %} {% if page.address %}
+	<p><strong>Address:</strong> {{ page.address }}</p>
+	{% endif %} {% if page.website %}
+	<p><a href="{{ page.website }}" target="_blank" rel="noopener">Visit website →</a></p>
+	{% endif %} {% if page.instagram %}
+	<p><a href="{{ page.instagram }}" target="_blank" rel="noopener">Instagram →</a></p>
+	{% endif %}
+
+	<div class="content">{{ content }}</div>
+
+	{% if page.gallery %}
+	<h2>Gallery</h2>
+	<ul class="gallery">
+		{% for img in page.gallery %}
+		<li><img src="{{ img }}" alt="{{ page.title | escape }}" loading="lazy" /></li>
+		{% endfor %}
+	</ul>
+	{% endif %} {% if page.tags %}
+	<p class="tags">
+		{% for tag in page.tags %}
+		<a href="/tags/{{ tag | slugify }}/">{{ tag }}</a>{% unless forloop.last %}, {% endunless %} {% endfor %}
+	</p>
+	{% endif %}
+</article>
