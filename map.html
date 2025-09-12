@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<title>Bath Insider Map Demo (Google Maps)</title>
+		<style>
+			html,
+			body {
+				height: 100%;
+				margin: 0;
+				padding: 0;
+				overflow-x: hidden;
+				font-family: sans-serif;
+			}
+			#banner {
+				position: fixed;
+				top: 0;
+				left: 0;
+				width: 100%;
+				height: 50px;
+				background: #333;
+				color: white;
+				display: flex;
+				align-items: center;
+				padding: 0 1rem;
+				z-index: 1000;
+			}
+			#map {
+				position: absolute;
+				top: 50px; /* below banner */
+				left: 0;
+				right: 0;
+				bottom: 0;
+			}
+			#filters {
+				position: absolute;
+				top: 60px;
+				right: 10px;
+				background: white;
+				padding: 0.5rem 1rem;
+				border-radius: 6px;
+				box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+				z-index: 1001;
+			}
+			#filters label {
+				display: block;
+				margin-bottom: 0.25rem;
+				font-weight: bold;
+			}
+			#filters label.cafe {
+				color: #ff7043;
+			}
+			#filters label.pub {
+				color: #4caf50;
+			}
+			#filters label.hotel {
+				color: #2196f3;
+			}
+			#filters label.restaurant {
+				color: #e41b58;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="banner">
+			<!-- Navigation goes here -->
+		</div>
+
+		<div id="filters">
+			<label><input type="checkbox" id="allFilter" checked /> All</label>
+			<label class="cafe"><input type="checkbox" value="Café" checked /> Cafés</label>
+			<label class="pub"><input type="checkbox" value="Pub" checked /> Pubs</label>
+			<label class="hotel"><input type="checkbox" value="Hotel" checked /> Hotels</label>
+			<label class="restaurant"><input type="checkbox" value="Restaurant" checked /> Restaurants</label>
+		</div>
+
+		<div id="map"></div>
+
+		<!-- Google Maps API -->
+		<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBaRq0yDYV4n55MG5s1r79iCFfW-NBRIAg"></script>
+		<script src="https://unpkg.com/@googlemaps/markerclusterer/dist/index.min.js"></script>
+
+		<script>
+			// Demo data
+			const data = [
+				{ title: "Colonna & Small’s", lat: 51.3813, lon: -2.3594, category: "Café", address: "6 Chapel Row, Bath", url: "https://colonnaandsmalls.co.uk" },
+				{ title: "The Raven", lat: 51.3825, lon: -2.363, category: "Pub", address: "Queen St, Bath", url: "https://theravenofbath.co.uk" },
+				{ title: "Abbey Hotel", lat: 51.3807, lon: -2.3576, category: "Hotel", address: "North Parade, Bath", url: "https://abbeyhotelbath.co.uk" },
+				{ title: "Sotto Sotto", lat: 51.3798, lon: -2.3588, category: "Restaurant", address: "North Parade, Bath", url: "https://sottosotto.co.uk" },
+			];
+
+			// Helper: create coloured dot with white icon
+			function makeDot(color, svgPath) {
+				const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28">
+          <circle cx="14" cy="14" r="12" fill="${color}" stroke="white" stroke-width="2"/>
+          <path d="${svgPath}" fill="white" transform="translate(6,6) scale(0.9)"/>
+        </svg>`;
+				return {
+					url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
+					scaledSize: new google.maps.Size(28, 28),
+				};
+			}
+
+			// Simple placeholder icons (swap for nicer paths if you want)
+			const categoryIcons = {
+				Café: makeDot("#ff7043", "M2 10h8v2H2z M4 6h4v2H4z"), // coffee-ish
+				Pub: makeDot("#4caf50", "M2 2h8v2H2z M3 4h6v6H3z"), // mug-ish
+				Hotel: makeDot("#2196f3", "M2 4h8v6H2z M3 5h2v2H3z"), // bed-ish
+				Restaurant: makeDot("#e41b58", "M4 2h2v8H4z M8 2h2v8H8z"), // fork/knife-ish
+			};
+
+			// Remove POI & transit
+			const mapStyle = [
+				{ featureType: "poi", stylers: [{ visibility: "off" }] },
+				{ featureType: "transit", stylers: [{ visibility: "off" }] },
+			];
+
+			let map,
+				markerCluster,
+				markers = [];
+
+			// Generate cluster bubble icon
+			function createClusterIcon(color) {
+				const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40">
+          <circle cx="20" cy="20" r="18" fill="${color}" stroke="white" stroke-width="2"/>
+        </svg>`;
+				return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
+			}
+
+			function initMap() {
+				map = new google.maps.Map(document.getElementById("map"), {
+					center: { lat: 51.3811, lng: -2.359 },
+					zoom: 15,
+					styles: mapStyle,
+				});
+
+				// Single shared InfoWindow
+				const infowindow = new google.maps.InfoWindow();
+
+				markers = data.map((entry) => {
+					const marker = new google.maps.Marker({
+						position: { lat: entry.lat, lng: entry.lon },
+						title: entry.title,
+						category: entry.category,
+						icon: categoryIcons[entry.category] || null,
+					});
+
+					marker.addListener("click", () => {
+						infowindow.setContent(`
+            <div style="font-size:14px; line-height:1.4; padding:4px 6px; max-width:220px;">
+              <div style="font-weight:bold; margin-bottom:2px;">${entry.title}</div>
+              <div style="margin-bottom:2px;">${entry.address}</div>
+              <a href="${entry.url}" target="_blank">Website</a>
+            </div>
+          `);
+						infowindow.open(map, marker);
+					});
+
+					return marker;
+				});
+
+				// Custom cluster renderer
+				markerCluster = new markerClusterer.MarkerClusterer({
+					map,
+					markers,
+					renderer: {
+						render: ({ count, position }) => {
+							return new google.maps.Marker({
+								position,
+								icon: {
+									url: createClusterIcon("#e41b58"),
+									scaledSize: new google.maps.Size(40, 40),
+								},
+								label: {
+									text: String(count),
+									color: "white",
+									fontSize: "14px",
+									fontWeight: "bold",
+								},
+								zIndex: Number(google.maps.Marker.MAX_ZINDEX) + count,
+							});
+						},
+					},
+				});
+			}
+
+			function updateFilters() {
+				const checkboxes = document.querySelectorAll('#filters input[type="checkbox"][value]');
+				const allBox = document.getElementById("allFilter");
+				const activeCats = Array.from(checkboxes)
+					.filter((c) => c.checked)
+					.map((c) => c.value);
+
+				markerCluster.clearMarkers();
+
+				const filtered = markers.filter((m) => activeCats.includes(m.category));
+				markerCluster.addMarkers(filtered);
+
+				allBox.checked = activeCats.length === checkboxes.length;
+			}
+
+			window.onload = () => {
+				initMap();
+
+				const checkboxes = document.querySelectorAll('#filters input[type="checkbox"][value]');
+				const allBox = document.getElementById("allFilter");
+
+				checkboxes.forEach((cb) => cb.addEventListener("change", updateFilters));
+				allBox.addEventListener("change", (e) => {
+					checkboxes.forEach((cb) => (cb.checked = e.target.checked));
+					updateFilters();
+				});
+
+				updateFilters();
+			};
+		</script>
+	</body>
+</html>

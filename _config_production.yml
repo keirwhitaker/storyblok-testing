@@ -1,5 +1,0 @@
-jekyll_get_json:
-  - data: bookmarks
-    json: "https://hook.eu1.make.com/4ma9eti7tt315g1n5byoqoq5nr2urcky"
-  - data: reads
-    json: "https://hook.eu1.make.com/0ywpt2hky3ngg766xhksnszn8968lup7"

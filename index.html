@@ -11,8 +11,11 @@ layout: default
 	{% endfor %}
 </ul>
 
-<ul>
+<ul class="text-2xl">
 	{% assign entries = site.entries %} {% for entry in entries %}
 	<li><a href="{{ entry.url }}">{{ entry.title }}</a> -- {{ entry.category }}</li>
 	{% endfor %}
 </ul>
+<div class="grid grid-cols-8 gap-4 border-y border-gray-200 bg-gray-100 p-4 xl:p-8">
+	<div class="rounded-xs border border-gray-200 bg-white p-4 text-center font-mono text-sm font-medium text-gray-500 transition duration-300">Lorem ipsum dolor sit, amet consectetur adipisicing elit. Ipsa, perspiciatis? Voluptatibus blanditiis quidem numquam perferendis quod, natus harum maxime repudiandae tempore beatae unde, nesciunt, nisi asperiores animi necessitatibus facere ipsum?</div>
+</div>

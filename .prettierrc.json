@@ -1,5 +1,5 @@
 {
-	"plugins": ["prettier-plugin-tailwindcss"],
+	"plugins": ["prettier-plugin-tailwindcss", "@prettier/plugin-ruby"],
 	"printWidth": 3000,
 	"useTabs": true,
 	"overrides": [
@@ -7,6 +7,18 @@
 			"files": ["./_layouts/**/*.liquid"],
 			"options": {
 				"parser": "html"
+			}
+		},
+		{
+			"files": ["**/*.rb"],
+			"options": {
+				"parser": "ruby"
+			}
+		},
+		{
+			"files": ["**/*.erb"],
+			"options": {
+				"parser": "erb"
 			}
 		}
 	]

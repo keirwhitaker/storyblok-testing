@@ -6,6 +6,7 @@ gem 'logger'
 gem 'csv'
 gem 'ostruct'
 gem 'base64'
+gem "syntax_tree"
 
 group :jekyll_plugins do
     gem 'jekyll-seo-tag'
