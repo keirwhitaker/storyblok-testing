@@ -16,3 +16,5 @@ collections:
   entries:
     output: true
     permalink: /entries/:slug/
+include:
+  - _redirects
