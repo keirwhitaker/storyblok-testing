@@ -85,8 +85,30 @@ def write_places(stories)
     title = content["title"] || story["name"]
     tags = (story["tag_list"] || []).map { |t| { "name" => t, "slug" => slugify(t) } }
     gallery = (content["gallery"] || []).map { |g| g["filename"] }
+    short = generate_short_code(slug)
 
-    front_matter = { "layout" => "place", "title" => title, "slug" => slug, "canonical_url" => "/places/#{slug}/", "canonical" => "/places/#{slug}/", "tags" => tags, "neighbourhood" => content["neighbourhood"], "address" => content["address"], "gallery" => gallery, "website" => content.dig("website", "url"), "instagram" => content.dig("instagram", "url"), "latitude" => content["latitude"], "longitude" => content["longitude"], "description" => content["description"], "editors_note" => content["editors_note"], "short_description" => content["short_description"], "permalink" => "/places/#{slug}/", "short_code" => generate_short_code(slug), "short_link" => "/go/#{generate_short_code(slug)}" }
+    front_matter = {
+      "layout" => "place",
+      "title" => title,
+      "slug" => slug,
+      "canonical_url" => "/places/#{slug}/",
+      "canonical" => "/places/#{slug}/",
+      "tags" => tags,
+      "neighbourhood" => content["neighbourhood"],
+      "address" => content["address"],
+      "gallery" => gallery,
+      "website" => content.dig("website", "url"),
+      "instagram" => content.dig("instagram", "url"),
+      "latitude" => content["latitude"],
+      "longitude" => content["longitude"],
+      "description" => content["description"],
+      "editors_note" => content["editors_note"],
+      "short_description" => content["short_description"],
+      "price" => content["Price"], # 👈 Price field
+      "permalink" => "/places/#{slug}/",
+      "short_code" => short,
+      "short_link" => "/go/#{short}"
+    }
 
     File.write(File.join(PLACES_DIR, "#{slug}.md"), front_matter.to_yaml + "---\n")
   end
@@ -126,7 +148,28 @@ def write_tagged_pages(stories)
       gallery = (content["gallery"] || []).map { |g| g["filename"] }
       short = generate_short_code(slug)
 
-      front_matter = { "layout" => "place", "title" => title, "slug" => slug, "canonical_url" => "/places/#{slug}/", "canonical" => "/places/#{slug}/", "tags" => tags_full, "neighbourhood" => content["neighbourhood"], "address" => content["address"], "gallery" => gallery, "website" => content.dig("website", "url"), "instagram" => content.dig("instagram", "url"), "latitude" => content["latitude"], "longitude" => content["longitude"], "description" => content["description"], "editors_note" => content["editors_note"], "short_description" => content["short_description"], "permalink" => "/directory/#{tag["slug"]}/#{slug}/", "short_code" => short, "short_link" => "/go/#{short}" }
+      front_matter = {
+        "layout" => "place",
+        "title" => title,
+        "slug" => slug,
+        "canonical_url" => "/places/#{slug}/",
+        "canonical" => "/places/#{slug}/",
+        "tags" => tags_full,
+        "neighbourhood" => content["neighbourhood"],
+        "address" => content["address"],
+        "gallery" => gallery,
+        "website" => content.dig("website", "url"),
+        "instagram" => content.dig("instagram", "url"),
+        "latitude" => content["latitude"],
+        "longitude" => content["longitude"],
+        "description" => content["description"],
+        "editors_note" => content["editors_note"],
+        "short_description" => content["short_description"],
+        "price" => content["Price"], # 👈 Price field
+        "permalink" => "/directory/#{tag["slug"]}/#{slug}/",
+        "short_code" => short,
+        "short_link" => "/go/#{short}"
+      }
 
       File.write(File.join(tag_dir, "#{slug}.md"), front_matter.to_yaml + "---\n")
     end
@@ -161,7 +204,27 @@ def write_json(stories)
       short = generate_short_code(slug)
       shortlink = "/go/#{short}"
 
-      { title: content["title"] || story["name"], slug: slug, canonical_url: canonical, canonical: canonical, tags: (story["tag_list"] || []).map { |t| { "name" => t, "slug" => slugify(t) } }, neighbourhood: content["neighbourhood"], address: content["address"], gallery: (content["gallery"] || []).map { |g| g["filename"] }, website: content.dig("website", "url"), instagram: content.dig("instagram", "url"), latitude: content["latitude"], longitude: content["longitude"], description: content["description"], editors_note: content["editors_note"], short_description: content["short_description"], permalink: canonical, short_code: short, short_link: shortlink }
+      {
+        title: content["title"] || story["name"],
+        slug: slug,
+        canonical_url: canonical,
+        canonical: canonical,
+        tags: (story["tag_list"] || []).map { |t| { "name" => t, "slug" => slugify(t) } },
+        neighbourhood: content["neighbourhood"],
+        address: content["address"],
+        gallery: (content["gallery"] || []).map { |g| g["filename"] },
+        website: content.dig("website", "url"),
+        instagram: content.dig("instagram", "url"),
+        latitude: content["latitude"],
+        longitude: content["longitude"],
+        description: content["description"],
+        editors_note: content["editors_note"],
+        short_description: content["short_description"],
+        price: content["Price"], # 👈 Price field
+        permalink: canonical,
+        short_code: short,
+        short_link: shortlink
+      }
     end
 
   # Private Jekyll data
