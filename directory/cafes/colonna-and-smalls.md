@@ -2,14 +2,24 @@
 layout: place
 title: Colonna and Smalls
 slug: colonna-and-smalls
+created_at: 2025-08-27
+published_at: 2025-09-16
+updated_at: 2025-09-16
+permalink: "/directory/cafes/colonna-and-smalls/"
 canonical_url: "/places/colonna-and-smalls/"
-canonical: "/places/colonna-and-smalls/"
+short_link:
+  code: 90a783
+  url: "/go/90a783"
 tags:
-- name: hipster
-  slug: hipster
-- name: flat white
+- name: Flat White
   slug: flat-white
-neighbourhood: city-centre
+  group: 2
+  group_name: perfect for
+- name: Cafes
+  slug: cafes
+  group: 0
+  group_name: menu
+neighbourhood:
 address: ''
 gallery:
 - https://a.storyblok.com/f/286731565092533/2344x746/2c8c8d9ebc/c-w-london.png
@@ -22,7 +32,5 @@ longitude: ''
 description: ''
 editors_note: ''
 short_description: ''
-permalink: "/directory/hipster/colonna-and-smalls/"
-short_code: 90a783
-short_link: "/go/90a783"
+price: "£££"
 ---

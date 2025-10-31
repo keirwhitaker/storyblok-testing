@@ -13,8 +13,8 @@ collections:
   posts:
     output: true
     permalink: /blog/:title/
-  entries:
+  places:
     output: true
-    permalink: /entries/:slug/
+    permalink: /places/:slug/
 include:
   - _redirects

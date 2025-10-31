@@ -1,0 +1,81 @@
+backend:
+  name: git-gateway
+  branch: main
+
+media_folder: "assets/uploads"
+public_folder: "/assets/uploads"
+
+collections:
+  - name: "places"
+    label: "Places"
+    folder: "_places"
+    create: true
+    slug: "{{slug}}"
+    preview_path: "places/{{slug}}"
+    fields:
+      # Basic Info
+      - { label: "Title", name: "title", widget: "string" }
+      - { label: "Slug", name: "slug", widget: "string", hint: "URL-friendly name (autofills from title)" }
+      - { label: "Layout", name: "layout", widget: "hidden", default: "place" }
+
+      # Dates
+      - { label: "Created At", name: "created_at", widget: "datetime" }
+      - { label: "Published At", name: "published_at", widget: "datetime" }
+      - { label: "Updated At", name: "updated_at", widget: "datetime" }
+
+      # URLs
+      - { label: "Permalink", name: "permalink", widget: "string", required: false }
+      - { label: "Canonical URL", name: "canonical_url", widget: "string", required: false }
+
+      # Short Link (nested object)
+      - label: "Short Link"
+        name: "short_link"
+        widget: "object"
+        collapsed: true
+        fields:
+          - { label: "Code", name: "code", widget: "string", required: false }
+          - { label: "URL", name: "url", widget: "string", required: false }
+
+      # Tags (list of grouped tags)
+      - label: "Tags"
+        name: "tags"
+        widget: "list"
+        summary: "{{fields.name}} ({{fields.group_name}})"
+        fields:
+          - { label: "Name", name: "name", widget: "string" }
+          - { label: "Slug", name: "slug", widget: "string" }
+          - { label: "Group", name: "group", widget: "number", value_type: "int", min: 0 }
+          - { label: "Group Name", name: "group_name", widget: "string" }
+
+      # Location Info
+      - { label: "Neighbourhood", name: "neighbourhood", widget: "string", required: false }
+      - { label: "Address", name: "address", widget: "string", required: false }
+      - { label: "Latitude", name: "latitude", widget: "string", required: false }
+      - { label: "Longitude", name: "longitude", widget: "string", required: false }
+
+      # Gallery
+      - label: "Gallery"
+        name: "gallery"
+        widget: "list"
+        summary: "{{fields.image}}"
+        field:
+          label: "Image"
+          name: "image"
+          widget: "image"
+
+      # Links
+      - { label: "Website", name: "website", widget: "string", required: false }
+      - { label: "Instagram", name: "instagram", widget: "string", required: false }
+
+      # Descriptions
+      - { label: "Short Description", name: "short_description", widget: "text", required: false }
+      - { label: "Description", name: "description", widget: "markdown", required: false }
+      - { label: "Editor's Note", name: "editors_note", widget: "markdown", required: false }
+
+      # Price
+      - label: "Price"
+        name: "price"
+        widget: "select"
+        options: ["£", "££", "£££", "££££"]
+        default: "££"
+        required: false

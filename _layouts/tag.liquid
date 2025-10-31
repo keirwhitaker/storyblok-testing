@@ -1,0 +1,40 @@
+<div class="tag-index max-w-5xl mx-auto p-8">
+  <header class="mb-10">
+    <h1 class="text-4xl font-bold mb-2">{{ page.title }}</h1>
+    <p class="text-gray-600">All places tagged with “{{ page.tag.name }}”</p>
+  </header>
+
+  {% assign tagged_places = site.places | where_exp: "place", "place.tags contains page.tag" %}
+
+  {% if tagged_places.size > 0 %}
+    <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      {% for place in tagged_places %}
+        <article class="place-card border rounded-lg shadow-sm hover:shadow-md transition p-4 flex flex-col">
+          {% if place.gallery and place.gallery.size > 0 %}
+            <a href="/directory/{{ page.tag.slug }}/{{ place.slug }}/">
+              <img src="{{ place.gallery[0] }}/w/600" alt="{{ place.title }}" class="rounded-md mb-3" loading="lazy">
+            </a>
+          {% endif %}
+
+          <h2 class="text-xl font-semibold mb-1">
+            <a href="/directory/{{ page.tag.slug }}/{{ place.slug }}/">{{ place.title }}</a>
+          </h2>
+
+          {% if place.short_description %}
+            <p class="text-gray-700 text-sm mb-2">{{ place.short_description }}</p>
+          {% endif %}
+
+          {% if place.price %}
+            <p class="font-medium text-sm">Price: {{ place.price }}</p>
+          {% endif %}
+
+          {% if place.address %}
+            <p class="text-xs text-gray-500">{{ place.address }}</p>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p>No places found for this tag.</p>
+  {% endif %}
+</div>

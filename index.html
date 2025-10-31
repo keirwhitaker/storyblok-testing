@@ -3,19 +3,23 @@ title: "Index"
 layout: default
 ---
 
-<h1>Latest Entries</h1>
+<h1>Latest Places</h1>
 
 <ul>
-	{% for entry in site.entries %}
-	<li>{{ entry.title }}</li>
+	{% for entry in site.places %}
+	<li><a href="{{ entry.url }}">{{ entry.title }}</a></li>
 	{% endfor %}
 </ul>
 
-<ul class="text-2xl">
-	{% assign entries = site.entries %} {% for entry in entries %}
-	<li><a href="{{ entry.url }}">{{ entry.title }}</a> -- {{ entry.category }}</li>
+<!-- <div class="grid grid-cols-8 gap-4 border-y border-gray-200 bg-gray-100 p-4 xl:p-8">
+	<div class="rounded-xs border border-gray-200 bg-white p-4 text-center font-mono text-sm font-medium text-gray-500 transition duration-300">Lorem ipsum dolor sit, amet consectetur adipisicing elit. Ipsa, perspiciatis? Voluptatibus blanditiis quidem numquam perferendis quod, natus harum maxime repudiandae tempore beatae unde, nesciunt, nisi asperiores animi necessitatibus facere ipsum?</div>
+</div> -->
+{% assign all_tags = "" | split: "" %} {% for place in site.places %} {% for tag in place.tags %} {% assign all_tags = all_tags | push: tag %} {% endfor %} {% endfor %} {% assign unique_tags = all_tags | uniq | sort: "slug" %}
+
+<ul class="tag-list">
+	{% for tag in unique_tags %}
+	<li data-slug="{{ tag.slug }}"><a href="/directory/{{ tag.slug }}/">{{ tag.name | upcase }}</a></li>
 	{% endfor %}
 </ul>
-<div class="grid grid-cols-8 gap-4 border-y border-gray-200 bg-gray-100 p-4 xl:p-8">
-	<div class="rounded-xs border border-gray-200 bg-white p-4 text-center font-mono text-sm font-medium text-gray-500 transition duration-300">Lorem ipsum dolor sit, amet consectetur adipisicing elit. Ipsa, perspiciatis? Voluptatibus blanditiis quidem numquam perferendis quod, natus harum maxime repudiandae tempore beatae unde, nesciunt, nisi asperiores animi necessitatibus facere ipsum?</div>
-</div>
+
+<div class="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-6">{% for place in site.data.places %} {% include entry-card.html entry=place %} {% endfor %}</div>

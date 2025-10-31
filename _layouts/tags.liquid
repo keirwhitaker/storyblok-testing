@@ -1,0 +1,5 @@
+<ul class="tag-list">
+	{% for tag in unique_tags %}
+	<li data-slug="{{ tag.slug }}"><a href="/directory/{{ tag.slug }}/">{{ tag.name | upcase }}</a></li>
+	{% endfor %}
+</ul>

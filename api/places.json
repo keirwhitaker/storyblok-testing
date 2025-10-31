@@ -1,20 +1,70 @@
 [
   {
-    "title": "Colonna and Smalls",
-    "slug": "colonna-and-smalls",
-    "canonical_url": "/places/colonna-and-smalls/",
-    "canonical": "/places/colonna-and-smalls/",
+    "title": "The Scallop Shell",
+    "slug": "the-scallop-shell",
+    "created_at": "2025-09-13",
+    "created_at_ts": 1757718000,
+    "published_at": "2025-09-16",
+    "published_at_ts": 1757977200,
+    "updated_at": "2025-09-16",
+    "updated_at_ts": 1757977200,
+    "canonical_url": "/places/the-scallop-shell/",
+    "short_link": {
+      "code": "f8f320",
+      "url": "/go/f8f320"
+    },
     "tags": [
       {
-        "name": "hipster",
-        "slug": "hipster"
-      },
-      {
-        "name": "flat white",
-        "slug": "flat-white"
+        "name": "Restaurants",
+        "slug": "restaurants",
+        "group": 0,
+        "group_name": "menu"
       }
     ],
-    "neighbourhood": "city-centre",
+    "neighbourhood": {
+      "name": "City Centre",
+      "slug": "city-centre"
+    },
+    "address": "42 Ringwood Road\nBath\nBANES\nBA2 3JL \nUK",
+    "gallery": [],
+    "website": "",
+    "instagram": "",
+    "latitude": "",
+    "longitude": "",
+    "description": "Lorem ipsum dolor sit amet consectetur adipisicing elit. Consequuntur repellat unde, porro at tenetur dolore qui alias! Esse, dolorem! Delectus architecto tempore placeat nulla provident possimus rem earum cumque laborum!\n\nLorem ipsum dolor sit *amet* consectetur adipisicing elit. Consequuntur repellat unde, porro at tenetur dolore qui alias! Esse, dolorem! Delectus architecto tempore placeat nulla provident possimus rem earum cumque laborum!\n\n**Lorem** ipsum dolor sit amet consectetur adipisicing elit. Consequuntur repellat unde, porro at tenetur dolore qui alias! Esse, dolorem! Delectus architecto tempore placeat nulla provident possimus rem earum cumque laborum!",
+    "editors_note": "Editor's note!",
+    "short_description": "This is the short description",
+    "price": "£££"
+  },
+  {
+    "title": "Colonna and Smalls",
+    "slug": "colonna-and-smalls",
+    "created_at": "2025-08-27",
+    "created_at_ts": 1756249200,
+    "published_at": "2025-09-16",
+    "published_at_ts": 1757977200,
+    "updated_at": "2025-09-16",
+    "updated_at_ts": 1757977200,
+    "canonical_url": "/places/colonna-and-smalls/",
+    "short_link": {
+      "code": "90a783",
+      "url": "/go/90a783"
+    },
+    "tags": [
+      {
+        "name": "Flat White",
+        "slug": "flat-white",
+        "group": 2,
+        "group_name": "perfect for"
+      },
+      {
+        "name": "Cafes",
+        "slug": "cafes",
+        "group": 0,
+        "group_name": "menu"
+      }
+    ],
+    "neighbourhood": null,
     "address": "",
     "gallery": [
       "https://a.storyblok.com/f/286731565092533/2344x746/2c8c8d9ebc/c-w-london.png",
@@ -28,22 +78,24 @@
     "description": "",
     "editors_note": "",
     "short_description": "",
-    "permalink": "/places/colonna-and-smalls/",
-    "short_code": "90a783",
-    "short_link": "/go/90a783"
+    "price": "£££"
   },
   {
     "title": "The Dark Horse",
     "slug": "the-dark-horse",
+    "created_at": "2025-08-27",
+    "created_at_ts": 1756249200,
+    "published_at": "2025-09-11",
+    "published_at_ts": 1757545200,
+    "updated_at": "2025-09-13",
+    "updated_at_ts": 1757718000,
     "canonical_url": "/places/the-dark-horse/",
-    "canonical": "/places/the-dark-horse/",
-    "tags": [
-      {
-        "name": "hipster",
-        "slug": "hipster"
-      }
-    ],
-    "neighbourhood": "",
+    "short_link": {
+      "code": "9d00ef",
+      "url": "/go/9d00ef"
+    },
+    "tags": [],
+    "neighbourhood": null,
     "address": "7A Kingsmead Square, Bath, BA1 2AB",
     "gallery": [
       "https://a.storyblok.com/f/286731565092533/1200x627/da9e88346b/getting-started.jpg",
@@ -58,8 +110,6 @@
     "description": "Voted top 10 best bars in the world by Tales Of The Cocktail, top 3 in the UK by Imbibe magazine, and #1 by our mums, The Dark Horse is an independent cocktail bar with a seasonal menu focusing on fresh and local ingredients.",
     "editors_note": "Booking **essential**!",
     "short_description": "",
-    "permalink": "/places/the-dark-horse/",
-    "short_code": "9d00ef",
-    "short_link": "/go/9d00ef"
+    "price": null
   }
 ]

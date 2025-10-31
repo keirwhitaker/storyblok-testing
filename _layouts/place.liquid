@@ -1,0 +1,59 @@
+<article class="place-page max-w-4xl mx-auto p-8">
+  <header class="mb-8">
+    <h1 class="text-4xl font-bold mb-2">{{ page.title }}</h1>
+    {% if page.neighbourhood %}
+      <p class="text-gray-600">Located in {{ page.neighbourhood }}</p>
+    {% endif %}
+    {% if page.price %}
+      <p class="text-lg font-semibold mt-2">Price: {{ page.price }}</p>
+    {% endif %}
+  </header>
+
+  {% if page.gallery %}
+    <div class="gallery grid gap-4 md:grid-cols-2 mb-8">
+      {% for image in page.gallery %}
+        <img src="{{ image }}/w/600" alt="{{ page.title }} image {{ forloop.index }}" class="rounded-lg shadow-sm" />
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if page.description %}
+    <div class="prose max-w-none mb-8">
+      {{ page.description }}
+    </div>
+  {% endif %}
+
+  {% if page.editors_note %}
+    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8">
+      <p class="font-medium">Editor’s Note:</p>
+      <p>{{ page.editors_note }}</p>
+    </div>
+  {% endif %}
+
+  <section class="info space-y-2 mb-8">
+    {% if page.address %}
+      <p><strong>Address:</strong> {{ page.address }}</p>
+    {% endif %}
+    {% if page.website %}
+      <p><strong>Website:</strong> <a href="{{ page.website }}" target="_blank" rel="noopener">{{ page.website }}</a></p>
+    {% endif %}
+    {% if page.instagram %}
+      <p><strong>Instagram:</strong> <a href="{{ page.instagram }}" target="_blank" rel="noopener">{{ page.instagram }}</a></p>
+    {% endif %}
+  </section>
+
+  {% if page.tags %}
+    <footer class="tags mt-8">
+      <h2 class="text-lg font-semibold mb-2">Tags</h2>
+      <ul class="flex flex-wrap gap-2">
+        {% for tag in page.tags %}
+          <li>
+            <a href="/directory/{{ tag.slug }}/" class="bg-gray-100 px-3 py-1 rounded-full text-sm hover:bg-gray-200">
+              {{ tag.name }}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    </footer>
+  {% endif %}
+</article>
