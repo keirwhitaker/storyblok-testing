@@ -1,5 +1,6 @@
 ---
-layout: tags
 title: Directory
 permalink: "/directory/"
+layout: tags
 ---
+

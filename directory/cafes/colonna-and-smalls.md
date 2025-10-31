@@ -1,11 +1,11 @@
 ---
-layout: place
 title: Colonna and Smalls
-slug: colonna-and-smalls
-created_at: 2025-08-27
-published_at: 2025-09-16
-updated_at: 2025-09-16
 permalink: "/directory/cafes/colonna-and-smalls/"
+layout: place
+slug: colonna-and-smalls
+created_at: 2025-08-27 00:00:00 Z
+published_at: 2025-09-16 00:00:00 Z
+updated_at: 2025-09-16 00:00:00 Z
 canonical_url: "/places/colonna-and-smalls/"
 short_link:
   code: 90a783
@@ -19,7 +19,7 @@ tags:
   slug: cafes
   group: 0
   group_name: menu
-neighbourhood:
+neighbourhood: 
 address: ''
 gallery:
 - https://a.storyblok.com/f/286731565092533/2344x746/2c8c8d9ebc/c-w-london.png
@@ -34,3 +34,4 @@ editors_note: ''
 short_description: ''
 price: "£££"
 ---
+

@@ -1,11 +1,11 @@
 ---
-layout: place
 title: The Scallop Shell
-slug: the-scallop-shell
-created_at: 2025-09-13
-published_at: 2025-09-16
-updated_at: 2025-09-16
 permalink: "/directory/restaurants/the-scallop-shell/"
+layout: place
+slug: the-scallop-shell
+created_at: 2025-09-13 00:00:00 Z
+published_at: 2025-09-16 00:00:00 Z
+updated_at: 2025-09-16 00:00:00 Z
 canonical_url: "/places/the-scallop-shell/"
 short_link:
   code: f8f320
@@ -34,3 +34,4 @@ editors_note: Editor's note!
 short_description: This is the short description
 price: "£££"
 ---
+

@@ -1,21 +1,23 @@
+---
+title: Site Title
+timezone: UTC
+collections:
+  places:
+    title: Places
+    output: true
+    permalink: "/places/:slug/"
+  posts:
+    title: Posts
+    output: true
+  uploads:
+    title: Uploads
+    output: true
 url: https://domain.com
 domain: domain.com
-title: Site Title
 exclude:
-  - "*.config.js"
-  - "package*.json"
-  - "tailwind"
-  - "node_modules"
+- "*.config.js"
+- package*.json
+- tailwind
+- node_modules
 include:
-  - humans.txt
-  - admin
-defaults:
-collections:
-  posts:
-    output: true
-    permalink: /blog/:title/
-  places:
-    output: true
-    permalink: /places/:slug/
-include:
-  - _redirects
+- _redirects

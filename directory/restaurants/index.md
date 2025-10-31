@@ -1,11 +1,12 @@
 ---
-layout: tag
 title: Restaurants
+permalink: "/directory/restaurants/"
+layout: tag
 tag:
   name: Restaurants
   slug: restaurants
   group: 0
   group_name: menu
-permalink: "/directory/restaurants/"
 canonical_url: "/directory/restaurants/"
 ---
+
