@@ -2,8 +2,6 @@ backend:
   name: github
   repo: keirwhitaker/storyblok-testing
   branch: main
-  base_url: https://auth.decapcms.org
-  auth_endpoint: auth
 
 media_folder: "assets/uploads"
 public_folder: "/assets/uploads"
