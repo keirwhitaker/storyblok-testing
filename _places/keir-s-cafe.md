@@ -1,24 +1,23 @@
 ---
+title: Keir S Cafe
+categories:
+- Cafes
 neighbourhood: Widcombe
-category: Cafes
 fb_type:
-  - Coffee
+- Coffee
 perfect_for:
-  - Hipsters
+- Hipsters
 short_description: The best there can be
-address: "123 Main Strees
-Bath
-BA1 3BD"
-website: "https://keirwhitaker.com"
+address: 123 Main Strees Bath BA1 3BD
+website: https://keirwhitaker.com
 instagram: keirhwhitaker
-price: ££
+price: "££"
 gallery:
-  - https://res.cloudinary.com/dfckivk2u/image/upload/v1762087639/keir-s-cafe-9qs-rosie-hawkins.jpg
-canonical_url: /places/keir-s-cafe/
+- https://res.cloudinary.com/dfckivk2u/image/upload/v1762087639/keir-s-cafe-9qs-rosie-hawkins.jpg
+canonical_url: "/places/keir-s-cafe/"
 layout: place
-created_at: "2025-11-02 12:47"
-updated_at: "2025-11-02 12:47"
-last_synced: "2025-11-02 12:47"
+created_at: 2025-11-02 12:47
+updated_at: 2025-11-02 12:47
+last_synced: 2025-11-02 12:47
 ---
-
 
