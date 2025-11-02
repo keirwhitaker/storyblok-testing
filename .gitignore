@@ -3,6 +3,7 @@ _config.storyblok.yaml
 _data
 _entries
 _site/
+_places/
 .sass-cache/
 .jekyll-cache/
 .jekyll-metadata
