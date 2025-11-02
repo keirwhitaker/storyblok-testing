@@ -1,0 +1,23 @@
+# -------------------------------------------------------------------
+# Netlify Build Configuration
+# -------------------------------------------------------------------
+[build]
+  # Run your Notion → Jekyll sync, then build the site
+  command = "npm run tailwind:minify && ruby _scripts/fetch_and_generate.rb && npm run jekyll:build"
+
+  # Jekyll output folder
+  publish = "_site"
+
+  # Ruby version & Bundler path
+  environment = { RUBY_VERSION = "3.3.0", BUNDLE_PATH = "vendor/bundle" }
+
+# -------------------------------------------------------------------
+# Cache Cloudinary + Bundler between builds
+# -------------------------------------------------------------------
+[[plugins]]
+  package = "@netlify/plugin-cache"
+  [plugins.inputs]
+  paths = [
+    "_data/cloudinary_cache.json",  # Persist Cloudinary cache between builds
+    "vendor/bundle"                 # Speeds up gem installs
+  ]

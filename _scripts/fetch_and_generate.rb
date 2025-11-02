@@ -1,253 +1,398 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "dotenv"
+Dotenv.load
 require "net/http"
 require "json"
+require "uri"
 require "fileutils"
-require "yaml"
-require "digest"
-require "date"
+require "time"
+require "base64"
+require "stringio"
+require "cloudinary"
+require "cloudinary/uploader"
+require "cloudinary/api"
 
-# --- Config ---
-CONFIG_FILE = "_config.storyblok.yaml"
-local_config = (File.exist?(CONFIG_FILE) ? YAML.load_file(CONFIG_FILE)["storyblok"] || {} : {})
+# -------------------------------------------------------------------
+# Configuration
+# -------------------------------------------------------------------
+NOTION_TOKEN = ENV["NOTION_TOKEN"]
+DATABASE_ID = ENV["NOTION_DB_ID"]
+CLOUDINARY_URL = ENV["CLOUDINARY_URL"]
+CACHE_PATH = "_data/cloudinary_cache.json"
+DRY_RUN = false
 
-TOKEN = ENV["STORYBLOK_TOKEN"] || local_config["token"] || abort("Missing STORYBLOK_TOKEN")
-VERSION = ENV["STORYBLOK_VERSION"] || local_config["version"] || "published"
-CTYPE = ENV["STORYBLOK_CONTENT_TYPE"] || local_config["content_type"] || "directory-listing"
+abort "❌ Missing NOTION_TOKEN or NOTION_DB_ID. Check .env" unless NOTION_TOKEN && DATABASE_ID
+abort "❌ Missing CLOUDINARY_URL. Add to .env file." unless CLOUDINARY_URL
 
-API_URL = "https://api.storyblok.com/v2/cdn/stories"
-PLACES_DIR = File.join(__dir__, "..", "_places")
-DIRECTORY_DIR = File.join(__dir__, "..", "directory")
-REDIRECTS_FILE = File.join(__dir__, "..", "_redirects")
-TAG_GROUPS_FILE = File.join(__dir__, "..", "_data", "tag_groups.json")
-TAG_GROUPS = File.exist?(TAG_GROUPS_FILE) ? JSON.parse(File.read(TAG_GROUPS_FILE)) : {}
+Cloudinary.config_from_url(CLOUDINARY_URL)
 
-# --- Helpers ---
-def slugify(str)
-  return "" if str.nil?
-  str.downcase.strip.gsub(/[^a-z0-9]+/, "-").gsub(/^-|-$/, "")
+# -------------------------------------------------------------------
+# Colour helpers
+# -------------------------------------------------------------------
+def colour(text, code)
+  "\e[#{code}m#{text}\e[0m"
+end
+def green(text) = colour(text, 32)
+def yellow(text) = colour(text, 33)
+def red(text) = colour(text, 31)
+
+$stats = { created: 0, updated: 0, deleted: 0, skipped: 0 }
+
+# -------------------------------------------------------------------
+# Cache helpers
+# -------------------------------------------------------------------
+def load_cache
+  File.exist?(CACHE_PATH) ? JSON.parse(File.read(CACHE_PATH)) : {}
+rescue JSON::ParserError
+  {}
 end
 
-def safe_slug(story)
-  slug = story["slug"]
-  if slug.nil? || slug.strip.empty?
-    name = story["name"] || "untitled"
-    slug = slugify(name)
-    slug = "place-#{story["id"]}" if slug.empty?
-  end
-  slug
+def save_cache(cache)
+  FileUtils.mkdir_p(File.dirname(CACHE_PATH))
+  File.write(CACHE_PATH, JSON.pretty_generate(cache))
+  puts "💾 Updated Cloudinary cache (#{cache.size} entries)"
 end
 
-def generate_short_code(slug)
-  Digest::MD5.hexdigest(slug)[0..5]
+$cache = load_cache
+
+# -------------------------------------------------------------------
+# HTTP helpers
+# -------------------------------------------------------------------
+def notion_request(path, method: :get, body: nil)
+  uri = URI("https://api.notion.com/v1/#{path}")
+  req = Net::HTTP.const_get(method.capitalize).new(uri)
+  req["Authorization"] = "Bearer #{NOTION_TOKEN}"
+  req["Notion-Version"] = "2022-06-28"
+  req["Content-Type"] = "application/json"
+  req.body = body.to_json if body
+
+  res = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) { |h| h.request(req) }
+  raise "Notion API error: #{res.code}" unless res.code.to_i == 200
+  JSON.parse(res.body)
 end
 
-def fetch_with_redirect(uri, limit = 5)
-  raise "Too many redirects" if limit == 0
-  res = Net::HTTP.get_response(uri)
-  case res
-  when Net::HTTPSuccess
-    res
-  when Net::HTTPRedirection
-    new_uri = URI(res["location"])
-    fetch_with_redirect(new_uri, limit - 1)
+def query_database(id)
+  notion_request("databases/#{id}/query", method: :post, body: { page_size: 100 })
+end
+
+def fetch_page_blocks(id)
+  notion_request("blocks/#{id}/children?page_size=100")["results"]
+rescue StandardError
+  []
+end
+
+# -------------------------------------------------------------------
+# Helpers
+# -------------------------------------------------------------------
+def clean_filename(name)
+  name
+    .to_s
+    .downcase
+    .gsub(/[’‘']/, "") # remove straight and curly apostrophes
+    .strip
+    .gsub(/[^a-z0-9]+/, "-") # replace remaining non-alphanumeric chars with hyphens
+    .gsub(/^-|-$/, "") # trim leading/trailing hyphens
+end
+
+def maybe_write(path, content, action_desc)
+  if DRY_RUN
+    puts green("🟢 Would #{action_desc}: #{path}")
+    $stats[:created] += 1 unless File.exist?(path)
+    $stats[:updated] += 1 if File.exist?(path)
   else
-    res.error!
+    FileUtils.mkdir_p(File.dirname(path))
+    existed = File.exist?(path)
+    File.write(path, content)
+    $stats[existed ? :updated : :created] += 1
   end
 end
 
-def format_date(str)
-  return nil if str.nil? || str.empty?
+def update_index(path, title, type)
+  title = title.is_a?(Array) ? title.first.to_s : title.to_s
+  title = title.strip.sub(/^[\-\s]+/, "")
+  return if title.empty?
+
+  desc =
+    case type
+    when "category"
+      "Places listed under the #{title.capitalize} category."
+    when "neighbourhood"
+      "Places located in #{title.capitalize}."
+    when "fb_type"
+      "Places with the F+B type #{title.capitalize}."
+    when "perfect_for"
+      "Places that are perfect for #{title.capitalize}."
+    else
+      "Places tagged as #{title.capitalize}."
+    end
+
+  data = { "layout" => "list", "title" => title.capitalize, "type" => type, "slug" => clean_filename(title), "description" => desc, "permalink" => "/#{clean_filename(title)}/" }
+
+  File.open(path, "w") do |f|
+    f.puts("---")
+    data.each { |k, v| f.puts("#{k}: #{v}") }
+    f.puts("---\n\n{{ description }}\n")
+  end
+end
+
+def blocks_to_markdown(blocks, image_collector)
+  blocks
+    .map do |block|
+      t = block["type"]
+      d = block[t]
+      case t
+      when "paragraph"
+        d["rich_text"].map { |x| x["plain_text"] }.join + "\n\n"
+      when "heading_1"
+        "# #{d["rich_text"].map { |x| x["plain_text"] }.join}\n\n"
+      when "heading_2"
+        "## #{d["rich_text"].map { |x| x["plain_text"] }.join}\n\n"
+      when "heading_3"
+        "### #{d["rich_text"].map { |x| x["plain_text"] }.join}\n\n"
+      when "bulleted_list_item"
+        "- #{d["rich_text"].map { |x| x["plain_text"] }.join}\n"
+      when "numbered_list_item"
+        "1. #{d["rich_text"].map { |x| x["plain_text"] }.join}\n"
+      when "quote"
+        "> #{d["rich_text"].map { |x| x["plain_text"] }.join}\n\n"
+      when "image"
+        url = d["file"] ? d["file"]["url"] : d["external"]["url"]
+        image_collector << url if url
+        "![Image](#{url})\n\n"
+      else
+        ""
+      end
+    end
+    .join
+end
+
+def extract_property_value(prop)
+  return nil unless prop.is_a?(Hash) && prop["type"]
+
+  case prop["type"]
+  when "title", "rich_text"
+    prop[prop["type"]].map { |t| t["plain_text"] }.join(" ")
+  when "number"
+    prop["number"]
+  when "select"
+    prop["select"]&.[]("name")
+  when "multi_select"
+    prop["multi_select"].map { |s| s["name"] }
+  when "checkbox"
+    prop["checkbox"]
+  when "url"
+    prop["url"]
+  when "email"
+    prop["email"]
+  when "phone_number"
+    prop["phone_number"]
+  when "date"
+    prop["date"]&.[]("start")
+  when "files"
+    prop["files"].map { |f| f["file"]&.[]("url") || f["external"]&.[]("url") }.compact
+  end
+rescue => e
+  warn "⚠️ Error parsing property: #{e.message}"
+  nil
+end
+
+# -------------------------------------------------------------------
+# Folder cleanup
+# -------------------------------------------------------------------
+def clean_content_folder
+  base = "content"
+  if Dir.exist?(base)
+    FileUtils.rm_rf(base)
+    puts red("🗑️  Removed existing content folder.")
+  end
+  FileUtils.mkdir_p(base)
+end
+
+# -------------------------------------------------------------------
+# Upload image to Cloudinary (skip if cached or already exists)
+# -------------------------------------------------------------------
+def upload_to_cloudinary(slug, url)
+  uri = URI.parse(url)
+  filename = File.basename(uri.path)
+  public_id = "#{slug}-#{filename}".sub(/\.[^.]+$/, "")
+
+  # Check local cache first
+  if $cache[public_id]
+    puts yellow("💾 Using cached Cloudinary URL for #{public_id}")
+    return $cache[public_id]
+  end
+
   begin
-    Date.parse(str)
-  rescue StandardError
-    nil
-  end
-end
-
-def format_date_with_ts(str)
-  return nil, nil if str.nil? || str.empty?
-  date =
-    begin
-      Date.parse(str)
-    rescue StandardError
-      nil
-    end
-  return nil, nil unless date
-  iso = date.strftime("%Y-%m-%d")
-  ts = date.to_time.to_i
-  [iso, ts]
-end
-
-def parse_tag(tag)
-  if tag =~ /^(\d+)-(.*)$/
-    group = $1.to_i
-    base = $2
-  else
-    group = nil
-    base = tag
-  end
-
-  group_name = TAG_GROUPS[group.to_s]
-  warn "⚠️  Tag '#{tag}' has group #{group}, but no mapping found in tag_groups.json" if group && group_name.nil?
-
-  { "name" => base.split.map(&:capitalize).join(" "), "slug" => slugify(base), "group" => group, "group_name" => group_name }
-end
-
-def parse_neighbourhood(value)
-  return nil if value.nil? || value.strip.empty?
-  { "name" => value.split.map(&:capitalize).join(" "), "slug" => slugify(value) }
-end
-
-# --- Fetch Stories ---
-def fetch_all_stories
-  page = 1
-  stories = []
-
-  loop do
-    uri = URI("#{API_URL}?content_type=#{CTYPE}&page=#{page}&per_page=100&token=#{TOKEN}&version=#{VERSION}")
-    res = fetch_with_redirect(uri)
-    data = JSON.parse(res.body)
-
-    stories.concat(data["stories"])
-
-    total = res["total"].to_i
-    break if stories.size >= total
-    page += 1
-  end
-
-  stories
-end
-
-# --- Write Places (canonical) ---
-def write_places(stories)
-  FileUtils.rm_rf(PLACES_DIR)
-  FileUtils.mkdir_p(PLACES_DIR)
-
-  stories.each do |story|
-    slug = safe_slug(story)
-    content = story["content"] || {}
-    title = content["title"] || story["name"]
-    tags = (story["tag_list"] || []).map { |t| parse_tag(t) }
-    gallery = (content["gallery"] || []).map { |g| g["filename"] }
-    short = generate_short_code(slug)
-
-    front_matter = { "layout" => "place", "title" => title, "slug" => slug, "created_at" => format_date(story["created_at"]), "published_at" => format_date(story["published_at"]), "updated_at" => format_date(story["updated_at"]), "permalink" => "/places/#{slug}/", "canonical_url" => "/places/#{slug}/", "short_link" => { "code" => short, "url" => "/go/#{short}" }, "tags" => tags, "neighbourhood" => parse_neighbourhood(content["neighbourhood"]), "address" => content["address"], "gallery" => gallery, "website" => content.dig("website", "url"), "instagram" => content.dig("instagram", "url"), "latitude" => content["latitude"], "longitude" => content["longitude"], "description" => content["description"], "editors_note" => content["editors_note"], "short_description" => content["short_description"], "price" => content["Price"] }
-
-    File.write(File.join(PLACES_DIR, "#{slug}.md"), front_matter.to_yaml + "---\n")
-  end
-  puts "✅ Wrote #{stories.size} canonical places"
-end
-
-# --- Write Tag Indexes & Tagged Pages ---
-def write_tagged_pages(stories)
-  FileUtils.rm_rf(DIRECTORY_DIR)
-  FileUtils.mkdir_p(DIRECTORY_DIR)
-
-  raw_tags = stories.flat_map { |s| s["tag_list"] || [] }
-  tags = raw_tags.uniq.map { |t| parse_tag(t) }.sort_by { |t| t["slug"] }
-
-  master_front = { "layout" => "tags", "title" => "Directory", "permalink" => "/directory/" }
-  File.write(File.join(DIRECTORY_DIR, "index.md"), master_front.to_yaml + "---\n")
-
-  tags.each do |tag|
-    tag_dir = File.join(DIRECTORY_DIR, tag["slug"])
-    FileUtils.mkdir_p(tag_dir)
-
-    tag_front = { "layout" => "tag", "title" => tag["name"], "tag" => tag, "permalink" => "/directory/#{tag["slug"]}/", "canonical_url" => "/directory/#{tag["slug"]}/" }
-    File.write(File.join(tag_dir, "index.md"), tag_front.to_yaml + "---\n")
-
-    stories.each do |story|
-      next unless (story["tag_list"] || []).any? { |t| parse_tag(t)["slug"] == tag["slug"] }
-
-      slug = safe_slug(story)
-      content = story["content"] || {}
-      title = content["title"] || story["name"]
-      tags_full = (story["tag_list"] || []).map { |t| parse_tag(t) }
-      gallery = (content["gallery"] || []).map { |g| g["filename"] }
-      short = generate_short_code(slug)
-
-      front_matter = { "layout" => "place", "title" => title, "slug" => slug, "created_at" => format_date(story["created_at"]), "published_at" => format_date(story["published_at"]), "updated_at" => format_date(story["updated_at"]), "permalink" => "/directory/#{tag["slug"]}/#{slug}/", "canonical_url" => "/places/#{slug}/", "short_link" => { "code" => short, "url" => "/go/#{short}" }, "tags" => tags_full, "neighbourhood" => parse_neighbourhood(content["neighbourhood"]), "address" => content["address"], "gallery" => gallery, "website" => content.dig("website", "url"), "instagram" => content.dig("instagram", "url"), "latitude" => content["latitude"], "longitude" => content["longitude"], "description" => content["description"], "editors_note" => content["editors_note"], "short_description" => content["short_description"], "price" => content["Price"] }
-
-      File.write(File.join(tag_dir, "#{slug}.md"), front_matter.to_yaml + "---\n")
+    existing = Cloudinary::Api.resource(public_id)
+    puts yellow("☁️  Skipping upload (already exists): #{public_id}")
+    $cache[public_id] = existing["secure_url"]
+    return existing["secure_url"]
+  rescue Cloudinary::Api::NotFound
+    res = Net::HTTP.get_response(uri)
+    if res.is_a?(Net::HTTPSuccess)
+      io = StringIO.new(res.body)
+      upload = Cloudinary::Uploader.upload(io, public_id: public_id, resource_type: "image")
+      puts green("☁️  Uploaded #{public_id} to Cloudinary")
+      $cache[public_id] = upload["secure_url"]
+      return upload["secure_url"]
+    else
+      puts red("⚠️  Failed to fetch image: #{url}")
+      return nil
     end
   end
-  puts "✅ Wrote #{tags.size} tag indexes and entry stubs"
+rescue => e
+  puts red("⚠️  Cloudinary error: #{e.message}")
+  nil
 end
 
-# --- Write Redirects ---
-def write_redirects(stories)
-  File.open(REDIRECTS_FILE, "w") do |f|
-    f.puts "/go/   /directory/   301"
-    stories.each do |story|
-      slug = safe_slug(story)
-      short = generate_short_code(slug)
-      f.puts "/go/#{short}   /places/#{slug}/   301"
+# -------------------------------------------------------------------
+# Main generator
+# -------------------------------------------------------------------
+def generate_markdown(entries)
+  FileUtils.mkdir_p("_places")
+  base = "content"
+
+  entries.each do |item|
+    props = item["properties"]
+    title = extract_property_value(props["Name"]) || "Untitled"
+    slug = clean_filename(title)
+    md_path = "_places/#{slug}.md"
+
+    body_blocks = fetch_page_blocks(item["id"])
+    inline_images = []
+    body_md = blocks_to_markdown(body_blocks, inline_images)
+
+    fields = {}
+    props.each do |k, v|
+      next if v.nil? || !v.is_a?(Hash)
+      val = extract_property_value(v)
+      next if val.nil? || (val.respond_to?(:empty?) && val.empty?)
+      normalised_key = k.downcase.strip.gsub(/\s*\+\s*/, "_b_").gsub(/\s+/, "_")
+      fields[normalised_key] = val
+    end
+
+    ordered = %w[title neighbourhood category fb_type perfect_for editors_pick tags short_description address longitude latitude website instagram price gallery]
+    fm = {}
+    ordered.each { |k| fm[k] = fields[k] if fields[k] }
+
+    now_pretty = Time.now.utc.strftime("%Y-%m-%d %H:%M")
+    fm["canonical_url"] = "/places/#{slug}/"
+    fm["layout"] = "place"
+    fm["created_at"] = now_pretty
+    fm["updated_at"] = now_pretty
+    fm["last_synced"] = now_pretty
+
+    md = +"---\n"
+    fm.each do |k, v|
+      if v.is_a?(Array)
+        md << "#{k}:\n"
+        if k == "gallery"
+          v.each do |url|
+            next if url.nil? || url.strip.empty?
+            remote_url = upload_to_cloudinary(slug, url)
+            md << "  - #{remote_url}\n" if remote_url
+          end
+        else
+          v.each do |i|
+            clean_item = i.to_s.strip.sub(/^[\-\s]+/, "")
+            next if clean_item.empty?
+            md << "  - #{clean_item}\n"
+          end
+        end
+      else
+        if v.is_a?(String)
+          clean_val = v.strip.sub(/^[\-\s]+/, "")
+          if k == "address" || clean_val.match?(/[,:@&]/)
+            md << "#{k}: \"#{clean_val.gsub('"', '\"')}\"\n"
+          else
+            md << "#{k}: #{clean_val}\n"
+          end
+        else
+          md << "#{k}: #{v}\n"
+        end
+      end
+    end
+
+    md << "---\n\n#{body_md.strip}\n"
+    maybe_write(md_path, md, "write _places file")
+
+    # Generate content folders
+    all_values = []
+    all_values << fields["category"] if fields["category"]
+    all_values << fields["neighbourhood"] if fields["neighbourhood"]
+    all_values << fields["fb_type"] if fields["fb_type"]
+    all_values.concat(fields["perfect_for"]) if fields["perfect_for"].is_a?(Array)
+
+    all_values.compact.each do |val|
+      dir = File.join(base, clean_filename(val))
+      FileUtils.mkdir_p(dir)
+
+      # Create the place file inside this folder
+      place_file_path = File.join(dir, "#{slug}.md")
+      content_with_permalink = md.sub(/---\n/, "---\npermalink: /#{clean_filename(val)}/#{slug}/\n")
+      maybe_write(place_file_path, content_with_permalink, "create place file in #{dir}")
+
+      # Create or update the index (listing) page
+      index_path = File.join(dir, "index.md")
+      update_index(index_path, val, "collection")
     end
   end
-  puts "✅ Wrote shortlink redirects to #{REDIRECTS_FILE}"
 end
 
-# --- Write Places JSON (private + public) ---
-def write_json(stories)
-  entries =
-    stories.map do |story|
-      content = story["content"] || {}
-      slug = safe_slug(story)
-      canonical = "/places/#{slug}/"
-      short = generate_short_code(slug)
+# -------------------------------------------------------------------
+# JSON export
+# -------------------------------------------------------------------
+def generate_data_files
+  require "json"
+  data = { categories: [], neighbourhoods: [], fb_types: [], perfect_for: [] }
 
-      created_iso, created_ts = format_date_with_ts(story["created_at"])
-      published_iso, published_ts = format_date_with_ts(story["published_at"])
-      updated_iso, updated_ts = format_date_with_ts(story["updated_at"])
+  Dir
+    .glob("_places/*.md")
+    .each do |file|
+      content = File.read(file)
+      { categories: /^category:\s*(.+)$/i, neighbourhoods: /^neighbourhood:\s*(.+)$/i, fb_types: /^fb_type:\s*(.+)$/i }.each do |type, regex|
+        val = content[regex, 1]&.strip&.sub(/^[\-\s]+/, "")&.gsub(/["']/, "")
+        data[type] << { "name" => val, "slug" => clean_filename(val) } if val && !val.empty?
+      end
 
-      { title: content["title"] || story["name"], slug: slug, created_at: created_iso, created_at_ts: created_ts, published_at: published_iso, published_at_ts: published_ts, updated_at: updated_iso, updated_at_ts: updated_ts, canonical_url: canonical, short_link: { code: short, url: "/go/#{short}" }, tags: (story["tag_list"] || []).map { |t| parse_tag(t) }, neighbourhood: parse_neighbourhood(content["neighbourhood"]), address: content["address"], gallery: (content["gallery"] || []).map { |g| g["filename"] }, website: content.dig("website", "url"), instagram: content.dig("instagram", "url"), latitude: content["latitude"], longitude: content["longitude"], description: content["description"], editors_note: content["editors_note"], short_description: content["short_description"], price: content["Price"] }
+      if content =~ /^perfect_for:\s*\n(.*?)(?:^[^\s-]|\Z)/m
+        raw_block = Regexp.last_match(1)
+        raw_block
+          .split(/\r?\n/)
+          .each do |line|
+            name = line.gsub(/^[\s\-–•]+/, "").strip
+            next if name.empty? || name.start_with?("#")
+            data[:perfect_for] << { "name" => name, "slug" => clean_filename(name) }
+          end
+      end
     end
 
-  data_dir = File.join(__dir__, "..", "_data")
-  api_dir = File.join(__dir__, "..", "api")
-  [data_dir, api_dir].each { |d| FileUtils.mkdir_p(d) }
-
-  File.write(File.join(data_dir, "places.json"), JSON.pretty_generate(entries))
-  File.write(File.join(api_dir, "places.json"), JSON.pretty_generate(entries))
-
-  puts "✅ Wrote places.json to _data/ and /api/"
-end
-
-# --- Write Tags JSON ---
-def write_tags_json(stories)
-  tag_counts =
-    Hash.new do |h, k|
-      parsed = parse_tag(k)
-      h[k] = { "name" => parsed["name"], "slug" => parsed["slug"], "group" => parsed["group"], "group_name" => parsed["group_name"], "count" => 0, "places" => [], "canonical_url" => "/directory/#{parsed["slug"]}/" }
-    end
-
-  stories.each do |story|
-    slug = safe_slug(story)
-    (story["tag_list"] || []).each do |t|
-      tag_counts[t]["count"] += 1
-      tag_counts[t]["places"] << slug unless tag_counts[t]["places"].include?(slug)
-    end
+  FileUtils.mkdir_p("_data")
+  data.each do |name, arr|
+    arr = arr.uniq { |a| a["slug"] }.sort_by { |a| a["name"] }
+    path = "_data/#{name}.json"
+    File.write(path, JSON.pretty_generate(arr))
+    puts "🗂️  Wrote #{path} (#{arr.size} items)"
   end
-
-  # sort by group first, then alphabetically by name
-  tags_array = tag_counts.values.sort_by { |t| [t["group"] || 999, t["name"]] }
-
-  data_dir = File.join(__dir__, "..", "_data")
-  FileUtils.mkdir_p(data_dir)
-  File.write(File.join(data_dir, "tags.json"), JSON.pretty_generate(tags_array))
-
-  total_tags = tags_array.size
-  groups = tags_array.map { |t| t["group"] }.compact.uniq.size
-  unmapped = tags_array.count { |t| t["group"].nil? || t["group_name"].nil? }
-
-  puts "✅ Wrote tags.json with #{total_tags} tags (groups: #{groups}, unmapped: #{unmapped})"
 end
 
-# --- Run ---
-stories = fetch_all_stories
-write_places(stories)
-write_tagged_pages(stories)
-write_redirects(stories)
-write_json(stories)
-write_tags_json(stories)
-puts "🎉 All done!"
+# -------------------------------------------------------------------
+# Run
+# -------------------------------------------------------------------
+puts "🔗 Connecting to Notion database #{DATABASE_ID[0..7]}..."
+entries = query_database(DATABASE_ID)["results"]
+puts "📦 Found #{entries.size} entries."
+
+clean_content_folder
+generate_markdown(entries)
+generate_data_files
+save_cache($cache)
+
+puts "\n📊 Summary:"
+puts "   🟢 Created: #{$stats[:created]}"
+puts "   🟢 Updated: #{$stats[:updated]}"
+puts "   🔴 Deleted: #{$stats[:deleted]}"
+puts "   🟡 Skipped: #{$stats[:skipped]}"
+puts "🎉 Done! #{DRY_RUN ? "(Dry Run — no files modified)" : ""}"

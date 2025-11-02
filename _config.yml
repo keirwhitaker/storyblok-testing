@@ -11,11 +11,8 @@ include:
   - admin
 defaults:
 collections:
-  posts:
-    output: true
-    permalink: /blog/:title/
   places:
     output: true
-    permalink: /places/:slug/
+    permalink: /places/:name/
 include:
   - _redirects
