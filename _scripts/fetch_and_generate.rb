@@ -20,7 +20,7 @@ require "cloudinary/api"
 NOTION_TOKEN = ENV["NOTION_TOKEN"]
 DATABASE_ID = ENV["NOTION_DB_ID"]
 CLOUDINARY_URL = ENV["CLOUDINARY_URL"]
-CACHE_PATH = "_data/cloudinary_cache.json"
+CACHE_PATH = ".netlify/cache/cloudinary_cache.json"
 DRY_RUN = false
 
 abort "❌ Missing NOTION_TOKEN or NOTION_DB_ID. Check .env" unless NOTION_TOKEN && DATABASE_ID
