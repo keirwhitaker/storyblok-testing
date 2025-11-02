@@ -41,12 +41,12 @@ $stats = { created: 0, updated: 0, deleted: 0, skipped: 0 }
 
 def stat_delete(path)
   puts red("🗑️  Deleted: #{path}")
-  $stats[:deleted] = $stats[:deleted].to_i + 1
+  $stats[:deleted] += 1
 end
 
 def stat_skip(path)
   puts yellow("⏩ Skipped: #{path}")
-  $stats[:skipped] = $stats[:skipped].to_i + 1
+  $stats[:skipped] += 1
 end
 
 # -------------------------------------------------------------------
@@ -137,9 +137,9 @@ def maybe_write(path, content, action_desc)
   end
   puts green("💾 #{action_desc}: #{path}")
   if existed
-    $stats[:updated] = $stats[:updated].to_i + 1
+    $stats[:updated] += 1
   else
-    $stats[:created] = $stats[:created].to_i + 1
+    $stats[:created] += 1
   end
 end
 
@@ -323,9 +323,21 @@ def generate_markdown(entries)
           v.each { |val| md << "  - #{val}\n" }
         end
       else
-        md << "#{k}: #{v}\n"
+        if v.is_a?(String)
+          clean_val = v.strip.sub(/^[\-\s]+/, "")
+          # Quote any string containing YAML-sensitive chars
+          if clean_val.match?(/[:#'"@&]/)
+            safe_val = clean_val.gsub('"', '\"')
+            md << "#{k}: \"#{safe_val}\"\n"
+          else
+            md << "#{k}: #{clean_val}\n"
+          end
+        else
+          md << "#{k}: #{v}\n"
+        end
       end
     end
+
     md << "---\n\n#{body_md.strip}\n"
     maybe_write(md_path, md, "write _places file")
 
