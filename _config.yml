@@ -1,18 +1,23 @@
-url: https://domain.com
-domain: domain.com
+---
 title: Site Title
-exclude:
-  - "*.config.js"
-  - "package*.json"
-  - "tailwind"
-  - "node_modules"
-include:
-  - humans.txt
-  - admin
-defaults:
+timezone: UTC
 collections:
   places:
+    title: Places
     output: true
-    permalink: /places/:name/
+    permalink: "/places/:name/"
+  posts:
+    title: Posts
+    output: true
+  uploads:
+    title: Uploads
+    output: true
+url: https://domain.com
+domain: domain.com
+exclude:
+- "*.config.js"
+- package*.json
+- tailwind
+- node_modules
 include:
-  - _redirects
+- _redirects
