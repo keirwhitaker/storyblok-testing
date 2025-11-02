@@ -1,0 +1,12 @@
+[build]
+  command = "npm run tailwind:minify && bundle install --jobs 4 && bundle exec ruby _scripts/fetch_and_generate.rb && bundle exec jekyll build"
+  publish = "_site"
+  environment = { RUBY_VERSION = "3.3.0", BUNDLE_PATH = "vendor/bundle" }
+
+[build.ignore]
+  command = "git diff --quiet HEAD^ HEAD -- . ':(exclude)_site' ':(exclude)content' ':(exclude)_places' '.netlify/cache/cloudinary_cache.json'"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+  Cache-Control = "public, max-age=600"
