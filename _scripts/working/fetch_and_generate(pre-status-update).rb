@@ -106,28 +106,8 @@ def notion_request(path, method: :get, body: nil)
   JSON.parse(res.body)
 end
 
-# -------------------------------------------------------------------
-# Query database (fetch all published entries, handle pagination)
-# -------------------------------------------------------------------
 def query_database(id)
-  all_results = []
-  start_cursor = nil
-
-  loop do
-    body = { page_size: 100, filter: { property: "Status", select: { equals: "Published" } } }
-    body[:start_cursor] = start_cursor if start_cursor
-
-    res = notion_request("databases/#{id}/query", method: :post, body: body)
-    all_results.concat(res["results"])
-
-    start_cursor = res["next_cursor"]
-    break unless res["has_more"]
-
-    puts yellow("↪️  Fetching next page of Notion results...")
-  end
-
-  puts green("✅ Retrieved #{all_results.size} published entries from Notion.")
-  { "results" => all_results }
+  notion_request("databases/#{id}/query", method: :post, body: { page_size: 100 })
 end
 
 def fetch_page_blocks(id)
@@ -208,25 +188,6 @@ def clean_content_folder
   end
   FileUtils.mkdir_p(base)
   puts green("📁 Created fresh content folder.")
-end
-
-# -------------------------------------------------------------------
-# _places folder cleanup
-# -------------------------------------------------------------------
-def clean_places_folder
-  base = File.expand_path("_places")
-  if Dir.exist?(base)
-    puts yellow("🧹 Removing existing _places folder (#{base})...")
-    FileUtils.rm_rf(base)
-    3.times do |i|
-      break unless Dir.exist?(base)
-      puts yellow("⚠️  Retry #{i + 1} deleting #{base}")
-      sleep 0.5
-      FileUtils.rm_rf(base)
-    end
-  end
-  FileUtils.mkdir_p(base)
-  puts green("📁 Created fresh _places folder.")
 end
 
 # -------------------------------------------------------------------
@@ -324,10 +285,17 @@ def blocks_to_markdown(blocks, page_slug)
       end
       previous_list_type = nil
     else
+      # ignore other block types for now
       previous_list_type = nil
     end
+
+    # add a blank line after a list block if the next block isn't the same list type
+    # (simple approach; keeps Markdown readable)
+    # We'll peek at the next block type if present
+    # Not critical—Markdown is forgiving—but keeps things tidy.
   end
 
+  # Ensure list blocks end with a blank line
   md << "\n" if previous_list_type
   [md, counts]
 end
@@ -357,6 +325,7 @@ def generate_markdown(entries)
     slug = clean_filename(title)
     puts cyan("🪄 Processing: #{title} (#{slug})")
 
+    # Notion content blocks → Markdown (with inline Cloudinary)
     blocks = fetch_page_blocks(item["id"])
     body_md, body_counts = blocks_to_markdown(blocks, slug)
     puts cyan("📝 Content extracted: #{body_counts[:paragraphs]}p, #{body_counts[:headings]}h, #{body_counts[:bullets]}•, #{body_counts[:numbers]}#, #{body_counts[:quotes]}q, #{body_counts[:images]}img")
@@ -375,6 +344,7 @@ def generate_markdown(entries)
 
     fm = { "title" => title, "layout" => "place", "canonical_url" => "/places/#{slug}/", "notion_created" => created_time, "notion_last_edited" => updated_time }
 
+    # Tags from taxonomy fields
     tags = []
     %w[category neighbourhood fb_type perfect_for].each do |k|
       val = fields[k]
@@ -382,8 +352,10 @@ def generate_markdown(entries)
     end
     fm["tags"] = tags.map { |t| clean_filename(t) }.uniq.compact
 
+    # Merge other fields (after our core keys)
     fields.each { |k, v| fm[k] = v unless fm.key?(k) }
 
+    # Build Markdown with front matter
     md = +"---\n"
     fm.each do |k, v|
       if v.is_a?(Array)
@@ -404,8 +376,10 @@ def generate_markdown(entries)
     md << "---\n\n"
     md << body_md unless body_md.strip.empty?
 
+    # Save canonical _places file
     maybe_write("_places/#{slug}.md", md, "write place file")
 
+    # Duplicate into taxonomy folders with generated_from metadata + permalink
     { "category" => fields["category"], "neighbourhood" => fields["neighbourhood"], "fb_type" => fields["fb_type"], "perfect_for" => fields["perfect_for"] }.each do |type, value|
       next unless value
       Array(value).each do |v|
@@ -429,7 +403,6 @@ entries = query_database(DATABASE_ID)["results"]
 puts green("📦 Found #{entries.size} entries in Notion.")
 
 clean_content_folder
-clean_places_folder
 generate_markdown(entries)
 save_cache($cache)
 
