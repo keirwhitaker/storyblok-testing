@@ -1,3 +1,11 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 @plugin "@tailwindcss/forms";
+
+@theme {
+	--font-serif: "DM Serif Display", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+html .t-url a {
+	@apply text-sky-700 underline decoration-2 underline-offset-2 transition duration-300 hover:text-sky-900 hover:no-underline;
+}

@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
+# encoding: UTF-8
 
 require "dotenv"
 Dotenv.load
@@ -10,6 +11,7 @@ require "fileutils"
 require "time"
 require "stringio"
 require "base64"
+require "yaml"
 require "cloudinary"
 require "cloudinary/uploader"
 require "cloudinary/api"
@@ -22,9 +24,12 @@ DATABASE_ID = ENV["NOTION_DB_ID"]
 CLOUDINARY_URL = ENV["CLOUDINARY_URL"]
 CACHE_PATH = ".netlify/cache/cloudinary_cache.json"
 DRY_RUN = false
+NOTION_API_VERSION = "2022-06-28"
+NOTION_RATE_LIMIT_DELAY = 0.3
+REQUIRED_PROPERTIES = %w[Name Status].freeze
 
-abort "❌ Missing NOTION_TOKEN or NOTION_DB_ID. Check .env" unless NOTION_TOKEN && DATABASE_ID
-abort "❌ Missing CLOUDINARY_URL. Add to .env file." unless CLOUDINARY_URL
+abort "❌ Missing NOTION_TOKEN or NOTION_DB_ID" unless NOTION_TOKEN && DATABASE_ID
+abort "❌ Missing CLOUDINARY_URL" unless CLOUDINARY_URL
 
 Cloudinary.config_from_url(CLOUDINARY_URL)
 
@@ -32,21 +37,35 @@ Cloudinary.config_from_url(CLOUDINARY_URL)
 # Colour helpers
 # -------------------------------------------------------------------
 def colour(text, code) = "\e[#{code}m#{text}\e[0m"
-def green(text) = colour(text, 32)
-def yellow(text) = colour(text, 33)
-def red(text) = colour(text, 31)
-def cyan(text) = colour(text, 36)
+def green(t) = colour(t, 32)
+def yellow(t) = colour(t, 33)
+def red(t) = colour(t, 31)
+def cyan(t) = colour(t, 36)
 
-$stats = { created: 0, updated: 0, deleted: 0, skipped: 0 }
+$stats = { created: 0, updated: 0, deleted: 0, skipped: 0, failed_images: 0 }
+$failed_images = []
 
 # -------------------------------------------------------------------
-# Cloudinary cache handling
+# Folder cleanup
+# -------------------------------------------------------------------
+def clean_folder(path)
+  FileUtils.rm_rf(path) if Dir.exist?(path)
+  FileUtils.mkdir_p(path)
+  puts green("📁 Created fresh #{path} folder.")
+end
+
+# We will call:
+# - clean_folder("content")
+# - clean_folder("_places")
+# - clean_folder("_data/taxonomies")
+# icons.yml lives in _data/ and is not touched.
+
+# -------------------------------------------------------------------
+# Cloudinary cache
 # -------------------------------------------------------------------
 def fetch_all_cloudinary_assets
-  puts yellow("☁️  Rebuilding Cloudinary cache from API...")
-  resources = []
-  next_cursor = nil
-
+  puts yellow("☁️  Rebuilding Cloudinary cache...")
+  resources, next_cursor = [], nil
   begin
     loop do
       res = Cloudinary::Api.resources(max_results: 500, next_cursor: next_cursor)
@@ -55,38 +74,34 @@ def fetch_all_cloudinary_assets
       break unless next_cursor
     end
   rescue => e
-    puts red("⚠️  Failed to fetch resources from Cloudinary: #{e.message}")
+    puts red("⚠️ Cloudinary API error: #{e.message}")
   end
-
   cache = {}
   resources.each { |r| cache[r["public_id"]] = r["secure_url"] }
-  puts green("☁️  Retrieved #{cache.size} Cloudinary assets into cache.")
+  puts green("☁️  Cached #{cache.size} assets.")
   cache
 end
 
 def load_cache
   if File.exist?(CACHE_PATH)
     begin
-      content = File.read(CACHE_PATH).strip
-      if content.empty?
-        puts yellow("⚠️  Cache file is empty — rebuilding from Cloudinary.")
-        return fetch_all_cloudinary_assets
-      end
-      JSON.parse(content)
+      raw = File.read(CACHE_PATH).strip
+      return fetch_all_cloudinary_assets if raw.empty?
+      return JSON.parse(raw)
     rescue JSON::ParserError
-      puts yellow("⚠️  Cache invalid — rebuilding from Cloudinary.")
-      fetch_all_cloudinary_assets
+      puts yellow("⚠️  Invalid cache — rebuilding.")
+      return fetch_all_cloudinary_assets
     end
   else
-    puts yellow("⚠️  Cache missing — rebuilding from Cloudinary.")
-    fetch_all_cloudinary_assets
+    puts yellow("⚠️  Cache missing — rebuilding.")
+    return fetch_all_cloudinary_assets
   end
 end
 
 def save_cache(cache)
   FileUtils.mkdir_p(File.dirname(CACHE_PATH))
   File.write(CACHE_PATH, JSON.pretty_generate(cache))
-  puts green("💾 Saved Cloudinary cache (#{cache.size} entries)")
+  puts green("💾 Saved Cloudinary cache.")
 end
 
 $cache = load_cache
@@ -95,44 +110,55 @@ $cache = load_cache
 # HTTP helpers
 # -------------------------------------------------------------------
 def notion_request(path, method: :get, body: nil)
+  sleep NOTION_RATE_LIMIT_DELAY
   uri = URI("https://api.notion.com/v1/#{path}")
   req = Net::HTTP.const_get(method.capitalize).new(uri)
   req["Authorization"] = "Bearer #{NOTION_TOKEN}"
-  req["Notion-Version"] = "2022-06-28"
+  req["Notion-Version"] = NOTION_API_VERSION
   req["Content-Type"] = "application/json"
   req.body = body.to_json if body
   res = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) { |h| h.request(req) }
-  raise "Notion API error: #{res.code}" unless res.code.to_i == 200
+
+  raise "Notion error #{res.code}: #{res.body}" unless res.code.to_i == 200
   JSON.parse(res.body)
+rescue => e
+  puts red("⚠️  Notion request failed: #{e.message}")
+  raise
 end
 
 # -------------------------------------------------------------------
-# Query database (fetch all published entries, handle pagination)
+# Validation
+# -------------------------------------------------------------------
+def validate_entry(entry)
+  missing = REQUIRED_PROPERTIES.reject { |p| entry["properties"].key?(p) }
+  if missing.any?
+    puts yellow("⚠️ Missing required properties: #{missing.join(", ")}")
+    return false
+  end
+  true
+end
+
+# -------------------------------------------------------------------
+# Query Notion
 # -------------------------------------------------------------------
 def query_database(id)
-  all_results = []
-  start_cursor = nil
-
+  results, cursor = [], nil
   loop do
     body = { page_size: 100, filter: { property: "Status", select: { equals: "Published" } } }
-    body[:start_cursor] = start_cursor if start_cursor
-
+    body[:start_cursor] = cursor if cursor
     res = notion_request("databases/#{id}/query", method: :post, body: body)
-    all_results.concat(res["results"])
-
-    start_cursor = res["next_cursor"]
+    results.concat(res["results"])
+    cursor = res["next_cursor"]
     break unless res["has_more"]
-
-    puts yellow("↪️  Fetching next page of Notion results...")
   end
-
-  puts green("✅ Retrieved #{all_results.size} published entries from Notion.")
-  { "results" => all_results }
+  puts green("📦 Retrieved #{results.size} published entries.")
+  { "results" => results }
 end
 
 def fetch_page_blocks(id)
   notion_request("blocks/#{id}/children?page_size=100")["results"]
-rescue StandardError
+rescue => e
+  puts red("⚠️ Failed to fetch page blocks: #{e.message}")
   []
 end
 
@@ -140,97 +166,61 @@ end
 # Helpers
 # -------------------------------------------------------------------
 def clean_filename(name)
-  name.to_s.downcase.gsub(/[’‘']/, "").strip.gsub(/[^a-z0-9]+/, "-").gsub(/^-|-$/, "")
+  name.to_s.downcase.gsub(/['’‘]/, "").strip.gsub(/[^a-z0-9]+/, "-").gsub(/^-|-$/, "")
 end
 
-def maybe_write(path, content, action_desc)
+def maybe_write(path, content, desc)
   if DRY_RUN
-    puts yellow("🟡 Would #{action_desc}: #{path}")
+    puts yellow("🟡 Would #{desc}: #{path}")
   else
-    FileUtils.mkdir_p(File.dirname(path))
     existed = File.exist?(path)
-    File.write(path, content)
-    puts(existed ? cyan("🔄 Updated: #{path}") : green("✅ Created: #{path}"))
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, content, mode: "w:UTF-8")
+    puts existed ? cyan("🔄 Updated #{path}") : green("✅ Created #{path}")
     $stats[existed ? :updated : :created] += 1
   end
 end
 
 # -------------------------------------------------------------------
-# Cloudinary uploader
+# Cloudinary upload
 # -------------------------------------------------------------------
 def upload_to_cloudinary(slug, url)
   uri = URI.parse(url)
   filename = File.basename(uri.path)
   public_id = "#{slug}-#{filename}".sub(/\.[^.]+$/, "")
-
-  if $cache[public_id]
-    puts yellow("💾 Using cached Cloudinary URL for #{public_id}")
-    return $cache[public_id]
-  end
+  return $cache[public_id] if $cache[public_id]
 
   begin
     existing = Cloudinary::Api.resource(public_id)
-    puts cyan("☁️  Found existing Cloudinary image: #{public_id}")
-    $cache[public_id] = existing["secure_url"]
-    return existing["secure_url"]
+    url = existing["secure_url"]
+    $cache[public_id] = url
+    puts cyan("☁️  Reusing Cloudinary asset #{public_id}")
+    return url
   rescue Cloudinary::Api::NotFound
     res = Net::HTTP.get_response(uri)
-    if res.is_a?(Net::HTTPSuccess)
-      io = StringIO.new(res.body)
-      upload = Cloudinary::Uploader.upload(io, public_id: public_id, resource_type: "image")
-      puts green("☁️  Uploaded #{public_id} to Cloudinary")
-      $cache[public_id] = upload["secure_url"]
-      return upload["secure_url"]
-    else
-      puts red("⚠️  Failed to fetch #{url}")
+    unless res.is_a?(Net::HTTPSuccess)
+      puts red("⚠️ Failed to fetch #{url}")
+      $stats[:failed_images] += 1
+      $failed_images << { slug: slug, url: url, reason: "HTTP #{res.code}" }
       return nil
     end
+
+    io = StringIO.new(res.body)
+    upload = Cloudinary::Uploader.upload(io, public_id: public_id, resource_type: "image")
+    url = upload["secure_url"]
+    $cache[public_id] = url
+    puts green("☁️  Uploaded #{public_id}")
+    return url
+  rescue => e
+    puts red("⚠️ Cloudinary error for #{url}: #{e.message}")
+    $stats[:failed_images] += 1
+    $failed_images << { slug: slug, url: url, reason: e.message }
+    return nil
   end
-rescue => e
-  puts red("⚠️  Cloudinary error: #{e.message}")
-  nil
 end
 
 # -------------------------------------------------------------------
-# Folder cleanup
-# -------------------------------------------------------------------
-def clean_content_folder
-  base = File.expand_path("content")
-  if Dir.exist?(base)
-    puts yellow("🧹 Removing existing content folder (#{base})...")
-    FileUtils.rm_rf(base)
-    3.times do |i|
-      break unless Dir.exist?(base)
-      puts yellow("⚠️  Retry #{i + 1} deleting #{base}")
-      sleep 0.5
-      FileUtils.rm_rf(base)
-    end
-  end
-  FileUtils.mkdir_p(base)
-  puts green("📁 Created fresh content folder.")
-end
-
-# -------------------------------------------------------------------
-# _places folder cleanup
-# -------------------------------------------------------------------
-def clean_places_folder
-  base = File.expand_path("_places")
-  if Dir.exist?(base)
-    puts yellow("🧹 Removing existing _places folder (#{base})...")
-    FileUtils.rm_rf(base)
-    3.times do |i|
-      break unless Dir.exist?(base)
-      puts yellow("⚠️  Retry #{i + 1} deleting #{base}")
-      sleep 0.5
-      FileUtils.rm_rf(base)
-    end
-  end
-  FileUtils.mkdir_p(base)
-  puts green("📁 Created fresh _places folder.")
-end
-
-# -------------------------------------------------------------------
-# Notion property extraction
+# Extract Notion properties
 # -------------------------------------------------------------------
 def extract_property_value(prop)
   return nil unless prop.is_a?(Hash) && prop["type"]
@@ -241,9 +231,10 @@ def extract_property_value(prop)
   when "number"
     prop["number"]
   when "select"
-    prop["select"]&.[]("name")
+    name = prop["select"]&.[]("name")
+    name&.to_s&.sub(/^\s*[-–—•·*]+\s*/, "")&.strip
   when "multi_select"
-    prop["multi_select"].map { |s| s["name"] }
+    prop["multi_select"].map { |s| s["name"].to_s.sub(/^\s*[-–—•·*]+\s*/, "").strip }
   when "checkbox"
     prop["checkbox"]
   when "url"
@@ -258,165 +249,260 @@ def extract_property_value(prop)
     prop["files"].map { |f| f["file"]&.[]("url") || f["external"]&.[]("url") }.compact
   end
 rescue => e
-  puts red("⚠️  Error parsing property: #{e.message}")
+  puts red("⚠️ Property parse error: #{e.message}")
   nil
 end
 
 # -------------------------------------------------------------------
-# Notion blocks → Markdown (with Cloudinary for inline images)
+# Convert blocks → markdown
 # -------------------------------------------------------------------
-def blocks_to_markdown(blocks, page_slug)
-  counts = Hash.new(0)
+def blocks_to_markdown(blocks, slug)
   md = +""
-  previous_list_type = nil
+  blocks.each do |b|
+    type, data = b["type"], b[b["type"]]
 
-  blocks.each do |block|
-    type = block["type"]
-    data = block[type]
     case type
     when "paragraph"
-      text = (data["rich_text"] || []).map { |x| x["plain_text"] }.join
-      unless text.strip.empty?
-        md << "#{text}\n\n"
-        counts[:paragraphs] += 1
-      end
+      text = (data["rich_text"] || []).map { |t| t["plain_text"] }.join
+      md << "#{text}\n\n" unless text.strip.empty?
     when "heading_1"
-      text = (data["rich_text"] || []).map { |x| x["plain_text"] }.join
-      md << "# #{text}\n\n"
-      counts[:headings] += 1
-      previous_list_type = nil
+      md << "# #{data["rich_text"].map { |t| t["plain_text"] }.join}\n\n"
     when "heading_2"
-      text = (data["rich_text"] || []).map { |x| x["plain_text"] }.join
-      md << "## #{text}\n\n"
-      counts[:headings] += 1
-      previous_list_type = nil
+      md << "## #{data["rich_text"].map { |t| t["plain_text"] }.join}\n\n"
     when "heading_3"
-      text = (data["rich_text"] || []).map { |x| x["plain_text"] }.join
-      md << "### #{text}\n\n"
-      counts[:headings] += 1
-      previous_list_type = nil
+      md << "### #{data["rich_text"].map { |t| t["plain_text"] }.join}\n\n"
     when "bulleted_list_item"
-      text = (data["rich_text"] || []).map { |x| x["plain_text"] }.join
-      md << "- #{text}\n"
-      counts[:bullets] += 1
-      previous_list_type = :bulleted
+      md << "- #{data["rich_text"].map { |t| t["plain_text"] }.join}\n"
     when "numbered_list_item"
-      text = (data["rich_text"] || []).map { |x| x["plain_text"] }.join
-      md << "1. #{text}\n"
-      counts[:numbers] += 1
-      previous_list_type = :numbered
+      md << "1. #{data["rich_text"].map { |t| t["plain_text"] }.join}\n"
     when "quote"
-      text = (data["rich_text"] || []).map { |x| x["plain_text"] }.join
-      md << "> #{text}\n\n"
-      counts[:quotes] += 1
-      previous_list_type = nil
+      md << "> #{data["rich_text"].map { |t| t["plain_text"] }.join}\n\n"
     when "image"
       src = data["file"] ? data["file"]["url"] : data["external"]&.[]("url")
-      if src && !src.strip.empty?
-        cloud_url = upload_to_cloudinary(page_slug, src)
-        if cloud_url
-          md << "![Image](#{cloud_url})\n\n"
-          counts[:images] += 1
-          puts cyan("📸 Inline image added for #{page_slug}")
-        else
-          puts yellow("⚠️  Inline image skipped (fetch/upload failed)")
+      if src && !src.empty?
+        if (cloud = upload_to_cloudinary(slug, src))
+          md << "![Image](#{cloud})\n\n"
         end
       end
-      previous_list_type = nil
-    else
-      previous_list_type = nil
     end
   end
-
-  md << "\n" if previous_list_type
-  [md, counts]
+  md
 end
 
 # -------------------------------------------------------------------
-# Index page generator
+# Index generator
 # -------------------------------------------------------------------
 def update_index(path, title, type)
-  title = title.is_a?(Array) ? title.first.to_s : title.to_s
+  title = title.is_a?(Array) ? title.first : title
   slug = clean_filename(title)
-  data = { "layout" => "list", "title" => title.strip, "slug" => slug, "permalink" => "/#{slug}/", "generated_from_field" => type, "generated_from_value" => slug }
-  content = +"---\n"
-  data.each { |k, v| content << "#{k}: #{v}\n" }
-  content << "---\n"
-  maybe_write(path, content, "update index for #{slug}")
+  yaml = { "layout" => "list", "title" => title.strip, "slug" => slug, "permalink" => "/#{slug}/", "generated_from_field" => type, "generated_from_value" => slug }
+
+  content = +"---\n" + yaml.map { |k, v| "#{k}: #{v}\n" }.join + "---\n"
+
+  maybe_write(path, content, "write index file")
 end
 
 # -------------------------------------------------------------------
-# Markdown generator
+# Generate markdown files
 # -------------------------------------------------------------------
 def generate_markdown(entries)
-  FileUtils.mkdir_p("_places")
-  base = "content"
+  valid = entries.select { |e| validate_entry(e) }
 
-  entries.each do |item|
+  valid.each do |item|
     title = extract_property_value(item["properties"]["Name"]) || "Untitled"
     slug = clean_filename(title)
-    puts cyan("🪄 Processing: #{title} (#{slug})")
+    puts cyan("🪄 Processing #{title} (#{slug})")
 
-    blocks = fetch_page_blocks(item["id"])
-    body_md, body_counts = blocks_to_markdown(blocks, slug)
-    puts cyan("📝 Content extracted: #{body_counts[:paragraphs]}p, #{body_counts[:headings]}h, #{body_counts[:bullets]}•, #{body_counts[:numbers]}#, #{body_counts[:quotes]}q, #{body_counts[:images]}img")
+    body_md = blocks_to_markdown(fetch_page_blocks(item["id"]), slug)
 
-    props = item["properties"]
+    # Extract Notion properties into fields
     fields = {}
-    props.each do |k, v|
+    item["properties"].each do |k, v|
       val = extract_property_value(v)
       next if val.nil? || (val.respond_to?(:empty?) && val.empty?)
-      key = k.downcase.strip.gsub(/\s*\+\s*/, "_b_").gsub(/\s+/, "_")
+      key = k.downcase.gsub(/\s*\+\s*/, "_b_").gsub(/\s+/, "_")
       fields[key] = val
     end
 
-    created_time = Time.parse(item["created_time"]).utc.strftime("%Y-%m-%d %H:%M")
-    updated_time = Time.parse(item["last_edited_time"]).utc.strftime("%Y-%m-%d %H:%M")
+    fm = { "title" => title, "layout" => "place", "canonical_url" => "/places/#{slug}/", "notion_created" => Time.parse(item["created_time"]).utc.strftime("%Y-%m-%d %H:%M"), "notion_last_edited" => Time.parse(item["last_edited_time"]).utc.strftime("%Y-%m-%d %H:%M") }
 
-    fm = { "title" => title, "layout" => "place", "canonical_url" => "/places/#{slug}/", "notion_created" => created_time, "notion_last_edited" => updated_time }
-
+    # Tags
     tags = []
     %w[category neighbourhood fb_type perfect_for].each do |k|
       val = fields[k]
       tags.concat(val.is_a?(Array) ? val : [val]) if val
     end
-    fm["tags"] = tags.map { |t| clean_filename(t) }.uniq.compact
+    fm["tags"] = tags.map { |t| clean_filename(t) }.uniq
 
-    fields.each { |k, v| fm[k] = v unless fm.key?(k) }
+    fields.each { |k, v| fm[k] = v unless %w[name status].include?(k) }
 
+    grouped = { "Content" => %w[title short_description layout], "Location & Category" => %w[category neighbourhood fb_type perfect_for], "Practical Info" => %w[price address website instagram], "Media & Highlights" => %w[gallery editors_pick], "Tags" => %w[tags], "System & Metadata" => %w[canonical_url permalink generated_from_field generated_from_value notion_created notion_last_edited] }
+
+    # Build markdown with Cloudinary fix for gallery
     md = +"---\n"
-    fm.each do |k, v|
-      if v.is_a?(Array)
-        md << "#{k}:\n"
-        if k == "gallery"
-          v.each do |url|
-            next if url.nil? || url.strip.empty?
-            remote_url = upload_to_cloudinary(slug, url)
-            md << "  - #{remote_url}\n" if remote_url
+    grouped.each do |label, keys|
+      md << "# ----------------------------------------\n"
+      md << "# #{label}\n"
+      md << "# ----------------------------------------\n"
+
+      keys.each do |key|
+        next unless fm.key?(key)
+        val = fm[key]
+
+        if val.is_a?(Array)
+          md << "#{key}:\n"
+
+          if key == "gallery"
+            val.each do |url|
+              next if url.nil? || url.strip.empty?
+              cloud = upload_to_cloudinary(slug, url)
+              md << "  - #{cloud}\n" if cloud
+            end
+          else
+            val.each { |i| md << "  - #{i}\n" }
           end
         else
-          v.each { |i| md << "  - #{i}\n" }
+          md << "#{key}: #{val}\n"
         end
-      else
-        md << "#{k}: #{v}\n"
+      end
+
+      md << "\n"
+    end
+
+    # Leftover fields
+    leftovers = fm.keys - grouped.values.flatten
+    unless leftovers.empty?
+      md << "# ----------------------------------------\n"
+      md << "# Other Fields\n"
+      md << "# ----------------------------------------\n"
+
+      leftovers.each do |key|
+        val = fm[key]
+        if val.is_a?(Array)
+          md << "#{key}:\n"
+          val.each { |i| md << "  - #{i}\n" }
+        else
+          md << "#{key}: #{val}\n"
+        end
       end
     end
+
     md << "---\n\n"
-    md << body_md unless body_md.strip.empty?
+    md << body_md
 
-    maybe_write("_places/#{slug}.md", md, "write place file")
+    maybe_write("_places/#{slug}.md", md, "write place markdown")
 
-    { "category" => fields["category"], "neighbourhood" => fields["neighbourhood"], "fb_type" => fields["fb_type"], "perfect_for" => fields["perfect_for"] }.each do |type, value|
-      next unless value
-      Array(value).each do |v|
-        folder = File.join(base, clean_filename(v))
+    # Variant generation (with Cloudinary fix)
+    { "category" => fields["category"], "neighbourhood" => fields["neighbourhood"], "fb_type" => fields["fb_type"], "perfect_for" => fields["perfect_for"] }.each do |type, values|
+      next unless values
+      Array(values).each do |v|
+        folder = File.join("content", clean_filename(v))
         FileUtils.mkdir_p(folder)
-        place_file = File.join(folder, "#{slug}.md")
-        content_with_meta = md.sub("---\n", "---\ngenerated_from_field: #{type}\ngenerated_from_value: #{clean_filename(v)}\npermalink: /#{clean_filename(v)}/#{slug}/\n")
-        maybe_write(place_file, content_with_meta, "create #{type} variant")
+        path = File.join(folder, "#{slug}.md")
+
+        var_fm = fm.dup
+        var_fm["generated_from_field"] = type
+        var_fm["generated_from_value"] = clean_filename(v)
+        var_fm["permalink"] = "/#{clean_filename(v)}/#{slug}/"
+
+        variant = +"---\n"
+        grouped.each do |label, keys|
+          variant << "# ----------------------------------------\n"
+          variant << "# #{label}\n"
+          variant << "# ----------------------------------------\n"
+
+          keys.each do |key|
+            next unless var_fm.key?(key)
+            val = var_fm[key]
+
+            if val.is_a?(Array)
+              variant << "#{key}:\n"
+
+              if key == "gallery"
+                val.each do |url|
+                  next if url.nil? || url.strip.empty?
+                  cloud = upload_to_cloudinary(slug, url)
+                  variant << "  - #{cloud}\n" if cloud
+                end
+              else
+                val.each { |i| variant << "  - #{i}\n" }
+              end
+            else
+              variant << "#{key}: #{val}\n"
+            end
+          end
+
+          variant << "\n"
+        end
+
+        leftovers = var_fm.keys - grouped.values.flatten
+        unless leftovers.empty?
+          variant << "# ----------------------------------------\n"
+          variant << "# Other Fields\n"
+          variant << "# ----------------------------------------\n"
+
+          leftovers.each do |key|
+            val = var_fm[key]
+            if val.is_a?(Array)
+              variant << "#{key}:\n"
+              val.each { |i| variant << "  - #{i}\n" }
+            else
+              variant << "#{key}: #{val}\n"
+            end
+          end
+        end
+
+        variant << "---\n\n"
+        variant << body_md
+
+        maybe_write(path, variant, "write #{type} variant")
         update_index(File.join(folder, "index.md"), v, type)
       end
     end
+  end
+end
+
+# -------------------------------------------------------------------
+# Taxonomy YAML generator (writes to _data/taxonomies/*.yml)
+# -------------------------------------------------------------------
+def generate_taxonomy_data
+  puts cyan("📚 Generating taxonomy YAML files...")
+
+  base = "_data/taxonomies"
+  FileUtils.mkdir_p(base)
+
+  taxonomies = { "categories" => [], "neighbourhoods" => [], "fb_types" => [], "perfect_for" => [] }
+
+  Dir
+    .glob("_places/*.md")
+    .each do |file|
+      content = File.read(file)
+
+      taxonomies["categories"] << Regexp.last_match(1).strip if content =~ /^category:\s*(.+)$/i
+
+      taxonomies["neighbourhoods"] << Regexp.last_match(1).strip if content =~ /^neighbourhood:\s*(.+)$/i
+
+      [%w[fb_type fb_types], %w[perfect_for perfect_for]].each do |search, key|
+        if content =~ /^#{search}:\s*\n(.*?)(?:^[^\s-]|\Z)/m
+          block = Regexp.last_match(1)
+          block
+            .split(/\r?\n/)
+            .each do |line|
+              cleaned = line.sub(/^\s*[-–—•·*]+\s*/, "").strip
+              taxonomies[key] << cleaned unless cleaned.empty?
+            end
+        end
+      end
+    end
+
+  taxonomies.each do |key, values|
+    values = values.uniq.sort.map { |v| { "name" => v, "slug" => clean_filename(v) } }
+
+    yaml = values.to_yaml
+    yaml = yaml.sub(/\A---\s*\n/, "") # remove YAML document header
+
+    File.write("#{base}/#{key}.yml", yaml)
+    puts green("📄 Wrote #{base}/#{key}.yml (#{values.size} items)")
   end
 end
 
@@ -425,16 +511,23 @@ end
 # -------------------------------------------------------------------
 start = Time.now
 puts cyan("🔗 Connecting to Notion...")
-entries = query_database(DATABASE_ID)["results"]
-puts green("📦 Found #{entries.size} entries in Notion.")
 
-clean_content_folder
-clean_places_folder
+entries = query_database(DATABASE_ID)["results"]
+
+clean_folder("content")
+clean_folder("_places")
+clean_folder("_data/taxonomies") # leaves _data/icons.yml alone
+
 generate_markdown(entries)
+generate_taxonomy_data
 save_cache($cache)
 
 duration = Time.now - start
 puts "\n📊 Summary:"
-$stats.each { |k, v| puts "   #{k.to_s.ljust(8)}: #{v}" }
-puts cyan("⏱️  Completed in #{duration.round(1)} seconds.")
-puts green("🎉 Done! #{DRY_RUN ? "(Dry Run — no files modified)" : ""}")
+$stats.each { |k, v| puts "   #{k.to_s.ljust(15)}: #{v}" }
+if $failed_images.any?
+  puts "\n⚠️  Failed Images (#{$failed_images.size}):"
+  $failed_images.each { |img| puts "   #{img[:slug]}: #{img[:url]} (#{img[:reason]})" }
+end
+puts cyan("⏱️ Completed in #{duration.round(1)} seconds.")
+puts green("🎉 Done!")

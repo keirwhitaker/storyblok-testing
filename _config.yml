@@ -1,5 +1,5 @@
 ---
-title: Site Title
+title: The Bath Insider
 timezone: UTC
 collections:
   places:
@@ -15,9 +15,9 @@ collections:
 url: https://domain.com
 domain: domain.com
 exclude:
-- "*.config.js"
-- package*.json
-- tailwind
-- node_modules
+  - "*.config.js"
+  - package*.json
+  - tailwind
+  - node_modules
 include:
-- _redirects
+  - _redirects
