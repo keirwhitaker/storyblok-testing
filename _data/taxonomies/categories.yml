@@ -1,0 +1,6 @@
+- name: Cafes
+  slug: cafes
+- name: Pubs
+  slug: pubs
+- name: Restaurants
+  slug: restaurants

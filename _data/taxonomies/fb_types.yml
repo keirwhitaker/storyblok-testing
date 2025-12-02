@@ -1,0 +1,6 @@
+- name: Coffee
+  slug: coffee
+- name: Craft Beer
+  slug: craft-beer
+- name: Italian
+  slug: italian
