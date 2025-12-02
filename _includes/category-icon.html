@@ -1,1 +1,1 @@
-{% assign slug = include.slug | downcase %} {% assign icon = site.data.icons[slug] | default: "fa-sharp fa-regular fa-tag" %}{{ slug }}<i class="{{ icon }}{% if include.class %} {{ include.class }}{% endif %}" aria-hidden="true"></i>
+{% assign slug = include.slug | downcase %} {% assign icon = site.data.icons[slug] | default: "fa-sharp fa-regular fa-tag" %}<i class="{{ icon }}{% if include.class %} {{ include.class }}{% endif %}" aria-hidden="true"></i>
