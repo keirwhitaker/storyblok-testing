@@ -1,12 +1,13 @@
 {
-	"plugins": ["prettier-plugin-tailwindcss", "@prettier/plugin-ruby"],
+	"plugins": ["@shopify/prettier-plugin-liquid", "prettier-plugin-tailwindcss", "@prettier/plugin-ruby"],
 	"printWidth": 3000,
 	"useTabs": true,
+
 	"overrides": [
 		{
-			"files": ["./_layouts/**/*.liquid"],
+			"files": ["**/*.liquid"],
 			"options": {
-				"parser": "html"
+				"parser": "liquid-html"
 			}
 		},
 		{

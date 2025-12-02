@@ -1,0 +1,11 @@
+{%- include html-header.html -%}
+<div class="xl:p-8">
+	<div class="mx-auto max-w-7xl">
+		{% include header.html %}
+		<div class="p-4">
+			<h2 class="mb-2 font-serif text-2xl font-black">{{ page.title }}</h2>
+			<p class="mb-8 text-sm font-medium text-gray-500">Lorem ipsum, dolor sit amet consectetur adipisicing elit. At soluta dolore maiores ut iusto cum impedit, repellat consequatur a quia tempora, quaerat voluptatibus deserunt? Ipsa unde ut tempora voluptate! Consequatur?</p>
+			<div class="grid grid-cols-3 gap-12">{% assign tag_slug = page.title | downcase | replace: "’", "" | replace: "'", "" | replace: " ", "-" %} {% assign matches = 0 %} {% assign listings = site.places | sort: "title" %} {% for p in listings %} {% if p.tags contains tag_slug %} {% assign matches = matches | plus: 1 %} {%- include place-card.html place=p -%} {% endif %} {% endfor %}</div>
+		</div>
+	</div>
+</div>

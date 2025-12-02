@@ -1,5 +1,5 @@
 <div class="p-4 font-sans">
-	<div class="mb-4"><h1 class="font-serif text-4xl font-black uppercase">{{ site.title }}</h1></div>
+	<div class="mb-4 p-4"><h1 class="text-center font-serif text-5xl">{{ site.title }}</h1></div>
 	<select id="taxonomy-select" class="w-full rounded-xs border border-gray-300 bg-white p-2 text-sm text-sky-900 focus:border-sky-500 focus:ring-sky-500 md:hidden" onchange="if (this.value) window.location.href = this.value;">
 		<optgroup label="Categories">
 			{% for item in site.data.taxonomies.categories %}
@@ -22,7 +22,7 @@
 			{% endfor %}
 		</optgroup>
 	</select>
-	<ul class="hidden flex-wrap gap-x-2 gap-y-4 md:flex">
+	<ul class="mx-auto hidden flex-wrap justify-center gap-x-2 gap-y-4 md:flex">
 		{% for item in site.data.taxonomies.categories %} {% if page.url contains item.slug %}
 		<li><a href="/{{ item.slug }}/" class="rounded-xs bg-sky-800 p-2 text-xs font-medium text-white"> {% include category-icon.html slug=item.slug %}{{ item.name }} </a></li>
 		{% else %}

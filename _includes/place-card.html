@@ -1,88 +1,14 @@
-<div class="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-md">
-	<!-- Image Carousel -->
-	{% if include.entry.gallery and include.entry.gallery.size > 0 %}
-	<div class="glide relative" id="glide-{{ include.entry.slug }}">
-		<div class="glide__track" data-glide-el="track">
-			<ul class="glide__slides">
-				{% for img in include.entry.gallery %}
-				<li class="glide__slide">
-					<a href="{{ include.entry.canonical_url }}">
-						<img src="{{ img }}?w=600&h=400&fit=crop" alt="{{ include.entry.title | escape }}" class="h-64 w-full object-cover" loading="lazy" />
-					</a>
-				</li>
-				{% endfor %}
-			</ul>
-		</div>
-
-		<!-- Left arrow -->
-		<div class="absolute inset-y-0 left-0 flex items-center px-2" data-glide-el="controls">
-			<button class="glide__arrow glide__arrow--left flex h-8 w-8 items-center justify-center rounded-full bg-white shadow transition hover:bg-pink-100" data-glide-dir="<">
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-				</svg>
-			</button>
-		</div>
-
-		<!-- Right arrow -->
-		<div class="absolute inset-y-0 right-0 flex items-center px-2" data-glide-el="controls">
-			<button class="glide__arrow glide__arrow--right flex h-8 w-8 items-center justify-center rounded-full bg-white shadow transition hover:bg-pink-100" data-glide-dir=">">
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-				</svg>
-			</button>
-		</div>
+<a class="flex flex-col transition duration-500" href="{{ include.place.canonical_url }}">
+	<img src="{{ include.place.gallery.first }}" alt="" class="mb-4 h-48 w-full rounded-xs border-8 border-white object-cover object-center" />
+	<div class="mb-4">
+		<h2 class="mb-2 font-serif font-black">{% include category-icon.html slug=include.place.category class="mr-0.5" %}{{ include.place.title }}</h2>
+		<p class="font-sans text-sm font-medium">{{ include.place.short_description }}</p>
 	</div>
-	{% endif %}
-
-	<!-- Content -->
-	<div class="flex flex-1 flex-col p-4">
-		<h3 class="mb-2 text-lg font-bold">
-			<a href="{{ include.entry.canonical_url }}" class="transition hover:text-pink-600"> {{ include.entry.title }} </a>
-		</h3>
-
-		{% if include.entry.short_description %}
-		<p class="mb-3 text-sm text-gray-600">{{ include.entry.short_description }}</p>
-		{% endif %}
-
-		<!-- Meta list -->
-		<ul class="mb-3 space-y-1 text-sm text-gray-700">
-			{% if include.entry.price %}
-			<li><span class="font-semibold">Price:</span> {{ include.entry.price }}</li>
-			{% endif %} {% if include.entry.neighbourhood %}
-			<li><span class="font-semibold">Neighbourhood:</span> {{ include.entry.neighbourhood.name }}</li>
-			{% endif %} {% if include.entry.address %}
-			<li><span class="font-semibold">Address:</span> {{ include.entry.address }}</li>
-			{% endif %}
+	<div class="mt-auto text-xs font-semibold">
+		<ul class="flex flex-wrap gap-x-2">
+			<li class="rounded-full bg-white px-2 py-1">{{ include.place.price }}</li>
+			<li class="rounded-full bg-white px-2 py-1">{{ include.place.fb_type }}</li>
+			<li class="rounded-full bg-white px-2 py-1">{{ include.place.neighbourhood }}</li>
 		</ul>
-
-		<!-- Footer actions -->
-		<div class="mt-auto space-y-3">
-			<div class="flex flex-wrap gap-2">
-				{% if include.entry.website %}
-				<a href="{{ include.entry.website }}" target="_blank" rel="noopener" class="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100"> Website </a>
-				{% endif %} {% if include.entry.instagram %}
-				<a href="{{ include.entry.instagram }}" target="_blank" rel="noopener" class="rounded-full bg-pink-50 px-2 py-1 text-xs text-pink-700 hover:bg-pink-100"> Instagram </a>
-				{% endif %}
-			</div>
-
-			{% if include.entry.tags and include.entry.tags.size > 0 %}
-			<div class="flex flex-wrap gap-2">
-				{% for tag in include.entry.tags %}
-				<a href="/directory/{{ tag.slug }}/" class="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 hover:bg-pink-100 hover:text-pink-700"> {{ tag.name }} </a>
-				{% endfor %}
-			</div>
-			{% endif %}
-		</div>
 	</div>
-</div>
-
-<!-- Initialise Glide.js -->
-<script>
-	if (typeof Glide !== "undefined") {
-		new Glide("#glide-{{ include.entry.slug }}", {
-			type: "carousel",
-			perView: 1,
-			gap: 0,
-		}).mount();
-	}
-</script>
+</a>

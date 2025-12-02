@@ -3,7 +3,8 @@
 @plugin "@tailwindcss/forms";
 
 @theme {
-	--font-serif: "DM Serif Display", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+	--font-serif: "Young Serif", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+	--font-sans: "Public Sans", ui-sans-serif, system-ui, BlinkMacSystemFont, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 }
 
 html .t-url a {
