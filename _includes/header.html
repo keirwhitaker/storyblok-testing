@@ -28,7 +28,7 @@
 		{% for item in site.data.taxonomies.categories %} {% if page.url contains item.slug %}
 		<li><a href="/{{ item.slug }}/" class="rounded-xs bg-sky-800 p-2 text-xs font-medium text-white"> {% include category-icon.html slug=item.slug %}{{ item.name }} </a></li>
 		{% else %}
-		<li><a href="/{{ item.slug }}/" class="rounded-xs bg-sky-100 p-2 text-xs font-medium text-sky-900 transition duration-500 hover:bg-sky-800 hover:text-white"> {% include category-icon.html slug=item.slug %}{{ item.name }} </a></li>
+		<li><a href="/{{ item.slug }}/" class="rounded-xs bg-sky-100 p-2 text-xs font-medium text-sky-900 transition duration-500 hover:bg-sky-800 hover:text-white"> {% include category-icon.html slug=item.slug %}{{ item.name }} </a>{{ item.slug }} → {{ site.data.icons[item.slug] | inspect }}</li>
 		{% endif %} {% endfor %} {% for item in site.data.taxonomies.fb_types %} {% if page.url contains item.slug %}
 		<li><a href="/{{ item.slug }}/" class="rounded-xs bg-orange-700 p-2 text-xs font-medium text-white"> {% include category-icon.html slug=item.slug %}{{ item.name }} </a></li>
 		{% else %}
